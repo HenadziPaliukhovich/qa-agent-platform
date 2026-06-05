@@ -7,7 +7,7 @@ on:
 
 jobs:
   smoke-artifacts:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 15
     env:
       BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
