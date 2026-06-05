@@ -1,0 +1,65 @@
+name: smoke-artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  smoke-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pydantic
+
+      - name: Ensure scripts are executable
+        run: |
+          chmod +x .scripts/smoke-artifact.sh
+          chmod +x .scripts/validate-result.py
+
+      - name: Smoke test_plan
+        shell: bash
+        run: |
+          OUTPUT="$(
+            .scripts/smoke-artifact.sh test_plan
+          )"
+          echo "$OUTPUT"
+          TASK_ID="$(echo "$OUTPUT" | awk '/Server task_id:/ {print $4}')"
+          test -n "$TASK_ID"
+          python3 .scripts/validate-result.py "$TASK_ID"
+
+      - name: Smoke test_report
+        shell: bash
+        run: |
+          OUTPUT="$(
+            .scripts/smoke-artifact.sh test_report
+          )"
+          echo "$OUTPUT"
+          TASK_ID="$(echo "$OUTPUT" | awk '/Server task_id:/ {print $4}')"
+          test -n "$TASK_ID"
+          python3 .scripts/validate-result.py "$TASK_ID"
+
+      - name: Smoke release_readiness
+        shell: bash
+        run: |
+          OUTPUT="$(
+            .scripts/smoke-artifact.sh release_readiness
+          )"
+          echo "$OUTPUT"
+          TASK_ID="$(echo "$OUTPUT" | awk '/Server task_id:/ {print $4}')"
+          test -n "$TASK_ID"
+          python3 .scripts/validate-result.py "$TASK_ID"
