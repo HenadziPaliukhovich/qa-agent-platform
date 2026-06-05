@@ -1,0 +1,16 @@
+{
+  "topics": [
+    "qa.agent.task.created",
+    "qa.agent.task.status",
+    "qa.agent.task.route.requested",
+    "qa.agent.task.route.resolved",
+    "qa.agent.task.rag.requested",
+    "qa.agent.task.rag.completed",
+    "qa.agent.task.execution.requested",
+    "qa.agent.task.execution.chunk",
+    "qa.agent.task.approval.requested",
+    "qa.agent.task.approval.resolved",
+    "qa.agent.task.completed",
+    "qa.agent.task.failed"
+  ]
+}

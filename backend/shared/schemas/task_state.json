@@ -1,0 +1,14 @@
+{
+  "states": [
+    "created",
+    "queued",
+    "routing",
+    "rag_searching",
+    "awaiting_approval",
+    "generating",
+    "post_processing",
+    "completed",
+    "failed",
+    "cancelled"
+  ]
+}
