@@ -17,6 +17,13 @@ from backend.shared.normalization import (
     normalize_test_cases,
     normalize_simple_objects,
 )
+from backend.shared.resilience import (
+    retry_with_backoff,
+    CircuitOpenError,
+    MaxRetriesExceeded,
+    OLLAMA_BREAKER,
+    OPENAI_BREAKER,
+)
 
 app = FastAPI(title="qa-llm-gateway")
 
@@ -65,6 +72,25 @@ _normalize_simple_objects = normalize_simple_objects
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "qa-llm-gateway"}
+
+
+@app.get("/circuit-status")
+def circuit_status():
+    """Returns current state of all circuit breakers. Useful for monitoring."""
+    return {
+        "ollama":  {"state": OLLAMA_BREAKER.state,  "name": OLLAMA_BREAKER.name},
+        "openai":  {"state": OPENAI_BREAKER.state,  "name": OPENAI_BREAKER.name},
+    }
+
+
+@app.post("/circuit-reset/{name}")
+def circuit_reset(name: str):
+    """Manually reset a circuit breaker (e.g. after fixing an upstream issue)."""
+    breakers = {"ollama": OLLAMA_BREAKER, "openai": OPENAI_BREAKER}
+    if name not in breakers:
+        raise HTTPException(status_code=404, detail=f"Unknown breaker: {name!r}")
+    breakers[name].reset()
+    return {"reset": name, "state": breakers[name].state}
 
 
 @app.get("/models")
@@ -452,24 +478,45 @@ def _openai_result(req: GenerateRequest) -> dict:
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
 
+    model_name = req.model_name or "gpt-4o-mini"
     prompt = _build_prompt(req)
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
-        json={
-            "model": req.model_name or "gpt-4o-mini",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.3,
-        },
-        timeout=60,
-    )
-    response.raise_for_status()
+
+    def _do_call() -> requests.Response:
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model_name,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        return resp
+
+    try:
+        response = retry_with_backoff(
+            _do_call,
+            retries=3,
+            base_delay=1.0,
+            max_delay=15.0,
+            breaker=OPENAI_BREAKER,
+        )
+    except CircuitOpenError as exc:
+        raise HTTPException(status_code=503, detail=f"OpenAI unavailable (circuit open): {exc}") from exc
+    except MaxRetriesExceeded as exc:
+        raise HTTPException(status_code=502, detail=f"OpenAI failed after retries: {exc.last_error}") from exc
+
     content = response.json()["choices"][0]["message"]["content"]
     parsed = extract_json_from_text(content)
     return _normalize_llm_payload(
         parsed if isinstance(parsed, dict) else {"summary": content},
         "openai",
-        req.model_name or "gpt-4o-mini",
+        model_name,
         req.task_type,
     )
 
@@ -478,17 +525,33 @@ def _ollama_result(req: GenerateRequest) -> dict:
     model_name = req.model_name or DEFAULT_OLLAMA_MODEL
     prompt = _build_prompt(req)
 
-    response = requests.post(
-        f"{OLLAMA_URL}/api/generate",
-        json={
-            "model": model_name,
-            "prompt": prompt,
-            "stream": False,
-            "keep_alive": req.keep_alive,
-        },
-        timeout=300,
-    )
-    response.raise_for_status()
+    def _do_call() -> requests.Response:
+        resp = requests.post(
+            f"{OLLAMA_URL}/api/generate",
+            json={
+                "model": model_name,
+                "prompt": prompt,
+                "stream": False,
+                "keep_alive": req.keep_alive,
+            },
+            timeout=300,
+        )
+        resp.raise_for_status()
+        return resp
+
+    try:
+        response = retry_with_backoff(
+            _do_call,
+            retries=3,
+            base_delay=2.0,
+            max_delay=20.0,
+            breaker=OLLAMA_BREAKER,
+        )
+    except CircuitOpenError as exc:
+        raise HTTPException(status_code=503, detail=f"Ollama unavailable (circuit open): {exc}") from exc
+    except MaxRetriesExceeded as exc:
+        raise HTTPException(status_code=502, detail=f"Ollama failed after retries: {exc.last_error}") from exc
+
     raw = response.json().get("response", "")
     parsed = extract_json_from_text(raw)
     return _normalize_llm_payload(
