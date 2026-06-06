@@ -2,11 +2,8 @@ from fastapi import FastAPI
 import logging
 import os
 
-from backend.services.qa_orchestrator.builders import (
-    build_structured_result,
-    normalize_llm_output,
-)
-from backend.services.qa_orchestrator.clients import call_llm_gateway, persist_result
+from backend.services.qa_orchestrator.clients import persist_result
+from backend.services.qa_orchestrator.dispatcher import get_task_handler
 from backend.services.qa_orchestrator.runtime import OrchestratorRuntime
 
 app = FastAPI(title="qa-orchestrator")
@@ -37,14 +34,14 @@ def process_task_event(event: dict) -> None:
         logger.warning("Skipping event without task_id: %s", event)
         return
 
+    task_type = event.get("task_type", "test_case_generation")
+    handler = get_task_handler(task_type)
+
     try:
-        runtime.publish_status(task_id, "running", TASK_STATUS_TOPIC, {"message": "Task is being processed"})
+        runtime.publish_status(task_id, "running", TASK_STATUS_TOPIC, {"message": f"Processing {task_type}"})
 
-        llm_response = call_llm_gateway(event)
-        raw_output = llm_response.get("output", {}) if isinstance(llm_response, dict) else {}
-        llm_output = normalize_llm_output(raw_output, event, llm_response)
-
-        artifact = build_structured_result(event, llm_output)
+        result = handler(event)
+        artifact = result.get("artifact", {}) if isinstance(result, dict) else {}
         persist_result(task_id, artifact)
 
         runtime.publish_status(
@@ -54,6 +51,7 @@ def process_task_event(event: dict) -> None:
             {
                 "message": "Task completed successfully",
                 "artifact_type": artifact.get("artifact_type"),
+                "task_type": task_type,
             },
         )
     except Exception as exc:
@@ -62,7 +60,7 @@ def process_task_event(event: dict) -> None:
             task_id,
             "failed",
             TASK_FAILED_TOPIC,
-            {"error": str(exc)},
+            {"error": str(exc), "task_type": task_type},
         )
 
 
