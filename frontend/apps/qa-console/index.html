@@ -4,9 +4,2716 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QA Agent Console</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121934;
+      --panel-2: #18213f;
+      --border: #2a365f;
+      --text: #edf2ff;
+      --muted: #a8b3d1;
+      --accent: #6ea8fe;
+      --accent-2: #8ef0d0;
+      --warning: #ffcf5a;
+      --success: #63d471;
+      --danger: #ff7b7b;
+      --shadow: 0 12px 40px rgba(0,0,0,.28);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(110,168,254,.12), transparent 28%),
+        radial-gradient(circle at bottom left, rgba(142,240,208,.08), transparent 24%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .app {
+      --sidebar-width: 360px;
+      display: grid;
+      grid-template-columns: var(--sidebar-width) 10px 1fr;
+      min-height: 100vh;
+    }
+
+    .splitter {
+      position: relative;
+      cursor: col-resize;
+      background: transparent;
+    }
+
+    .splitter::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(255,255,255,.08) 20%,
+        rgba(255,255,255,.14) 50%,
+        rgba(255,255,255,.08) 80%,
+        transparent 100%
+      );
+      opacity: .9;
+      transition: opacity .2s ease, background .2s ease;
+    }
+
+    .splitter:hover::before,
+    .splitter.dragging::before {
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(110,168,254,.28) 20%,
+        rgba(110,168,254,.48) 50%,
+        rgba(110,168,254,.28) 80%,
+        transparent 100%
+      );
+      opacity: 1;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--border);
+      background: rgba(9, 14, 28, 0.72);
+      backdrop-filter: blur(10px);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .new-task {
+      padding: 18px;
+    }
+
+    .section-title {
+      margin: 0 0 12px 0;
+      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+
+    form {
+      display: grid;
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 12px 14px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(110,168,254,.18);
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), #82c4ff);
+      color: #08111f;
+      font-weight: 700;
+      padding: 12px 14px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .task-list {
+      display: grid;
+      gap: 10px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .task-item {
+      width: 100%;
+      text-align: left;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      cursor: pointer;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+
+    .task-item:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+    }
+
+    .task-item.active {
+      border-color: var(--accent);
+      background: var(--panel-2);
+    }
+
+    .task-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .task-id {
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .story-snippet {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.45;
+      margin: 6px 0 0 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .state-created { background: rgba(255,207,90,.14); color: var(--warning); }
+    .state-queued, .state-generating, .state-running { background: rgba(110,168,254,.14); color: var(--accent); }
+    .state-completed { background: rgba(99,212,113,.14); color: var(--success); }
+    .state-failed { background: rgba(255,123,123,.14); color: var(--danger); }
+
+    .main {
+      padding: 28px;
+      display: grid;
+      gap: 18px;
+      align-content: start;
+    }
+
+    .app.resizing {
+      user-select: none;
+      cursor: col-resize;
+    }
+
+    .app.resizing * {
+      cursor: col-resize !important;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-start;
+      padding: 24px;
+    }
+
+    .hero h2 {
+      margin: 0 0 8px 0;
+      font-size: 28px;
+      line-height: 1.1;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 820px;
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.3fr .9fr;
+      gap: 18px;
+      min-height: 0;
+    }
+
+    .panel {
+      padding: 20px;
+      min-height: 220px;
+    }
+
+    .panel h3 {
+      margin: 0 0 14px 0;
+      font-size: 18px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 8px 0;
+    }
+
+    .detail-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .artifact-block {
+      display: grid;
+      gap: 12px;
+    }
+
+    .artifact-box {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .artifact-box h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: var(--accent-2);
+    }
+
+    .artifact-box p,
+    .artifact-box li {
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .artifact-box ul,
+    .artifact-box ol {
+      margin: 8px 0 0 18px;
+      padding: 0;
+    }
+
+    .artifact-box li + li {
+      margin-top: 6px;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      font-size: 14px;
+    }
+
+    .kv:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .key {
+      color: var(--muted);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-item {
+      border-left: 3px solid var(--border);
+      padding: 8px 0 8px 12px;
+    }
+
+    .timeline-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .timeline-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .status-line {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .task-toolbar {
+      display: grid;
+      gap: 10px;
+    }
+
+    .task-filters {
+      display: grid;
+      grid-template-columns: 1fr 140px;
+      gap: 10px;
+    }
+
+    .task-toolbar input,
+    .task-toolbar select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    .timeline-item {
+      display: grid;
+      gap: 6px;
+    }
+
+    .timeline-event-type {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .timeline-event-summary {
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .timeline-event-time {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .timeline.compact .timeline-event-summary {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .task-summary {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .task-sticky-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: grid;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      backdrop-filter: blur(8px);
+    }
+
+    .task-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .task-stat {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .timeline-search {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    .knowledge-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .knowledge-list {
+      display: grid;
+      gap: 10px;
+      max-height: 280px;
+      overflow: auto;
+    }
+
+    .knowledge-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-2);
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .knowledge-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .knowledge-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .bulk-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .task-item-shell {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .task-check {
+      margin-top: 12px;
+    }
+
+    .pin-button {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--muted);
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+
+    .pin-button.active {
+      color: #f5b301;
+      border-color: #f5b30155;
+    }
+
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 12px 18px;
+      border-radius: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 13px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+      pointer-events: auto;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast.success { border-color: #4caf5055; }
+    .toast.error { border-color: #f4433655; }
+
+    .auto-refresh-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    .auto-refresh-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+
+    .auto-refresh-dot.active {
+      background: #4caf50;
+      box-shadow: 0 0 6px #4caf5088;
+    }
+
+    /* ── Circuit breaker status ── */
+    .circuit-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .circuit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      cursor: default;
+      transition: background 0.3s, color 0.3s;
+    }
+    .circuit-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .circuit-badge.closed  { background: rgba(99,212,113,.12); color: #63d471; border-color: rgba(99,212,113,.25); }
+    .circuit-badge.closed  .dot { background: #63d471; box-shadow: 0 0 5px #63d47199; }
+    .circuit-badge.open    { background: rgba(255,123,123,.12); color: #ff7b7b; border-color: rgba(255,123,123,.25); }
+    .circuit-badge.open    .dot { background: #ff7b7b; box-shadow: 0 0 5px #ff7b7b99; }
+    .circuit-badge.half_open { background: rgba(255,207,90,.12); color: #ffcf5a; border-color: rgba(255,207,90,.25); }
+    .circuit-badge.half_open .dot { background: #ffcf5a; box-shadow: 0 0 5px #ffcf5a99; }
+    .circuit-badge.unknown { background: rgba(168,179,209,.1); color: var(--muted); border-color: rgba(168,179,209,.2); }
+    .circuit-badge.unknown .dot { background: var(--muted); }
+
+    /* ── Retry task button ── */
+    .retry-task-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 13px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255,207,90,.13);
+      color: #ffcf5a;
+      border: 1px solid rgba(255,207,90,.28);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .retry-task-btn:hover  { background: rgba(255,207,90,.22); }
+    .retry-task-btn:active { transform: scale(0.96); }
+    .retry-task-btn.hidden { display: none; }
+
+    /* ── CSV export button ── */
+    .export-csv-btn {
+      /* inherits .secondary styles, no extra needed */
+    }
+
+    .command-palette-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 10, 14, 0.55);
+      backdrop-filter: blur(8px);
+      z-index: 10000;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 10vh 16px 24px;
+    }
+
+    .command-palette-backdrop.open {
+      display: flex;
+    }
+
+    .command-palette {
+      width: min(760px, 100%);
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 18px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.30);
+      overflow: hidden;
+    }
+
+    .command-palette-search {
+      width: 100%;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      padding: 16px 18px;
+      font: inherit;
+      outline: none;
+    }
+
+    .command-palette-list {
+      max-height: 420px;
+      overflow: auto;
+      display: grid;
+    }
+
+    .command-item {
+      display: grid;
+      gap: 4px;
+      padding: 14px 18px;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .command-item:hover,
+    .command-item.active {
+      background: var(--panel-2);
+    }
+
+    .command-item small {
+      color: var(--muted);
+    }
+
+    .task-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .task-pagination-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .task-pagination select {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .hero-pill {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 1100px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .splitter {
+        display: none;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .main,
+      .sidebar {
+        padding: 16px;
+      }
+
+      .hero {
+        flex-direction: column;
+        padding: 18px;
+      }
+
+      .kv {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>QA Agent Console</h1>
-  <p>Starter UI scaffold.</p>
+  <div id="toast-container" class="toast-container"></div>
+  <div id="command-palette-backdrop" class="command-palette-backdrop">
+    <div class="command-palette" role="dialog" aria-modal="true" aria-label="Command palette">
+      <input id="command-palette-search" class="command-palette-search" type="search" placeholder="Type a command…" />
+      <div id="command-palette-list" class="command-palette-list"></div>
+    </div>
+  </div>
+  <div id="app-shell" class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>QA Agent Console</h1>
+        <p>Lead-level QA workspace for requirements, planning, reporting and release decisions.</p>
+      </div>
+
+      <section class="card new-task">
+        <h2 class="section-title">New task</h2>
+        <form id="task-form">
+          <label>
+            Task type
+            <select id="task-type" name="task_type">
+              <option value="requirements_analysis">Requirements analysis</option>
+              <option value="manual_test_case_review">Manual test case review</option>
+              <option value="test_plan">Test plan</option>
+              <option value="test_report">Test report</option>
+              <option value="release_readiness">Release readiness</option>
+              <option value="test_case_generation">Test case generation</option>
+            </select>
+          </label>
+
+          <label>
+            Model provider
+            <select id="model-provider" name="model_provider">
+              <option value="ollama" selected>ollama</option>
+              <option value="openai">openai</option>
+              <option value="stub">stub</option>
+            </select>
+          </label>
+
+          <label>
+            Model name
+            <select id="model-name" name="model_name"></select>
+          </label>
+
+          <div class="top-row" style="margin-top:-6px;">
+            <div class="helper" id="model-status">Loading models…</div>
+            <button id="reload-models" class="secondary" type="button">Reload models</button>
+          </div>
+
+          <label>
+            Input
+            <textarea id="task-input" name="task_input" placeholder="Paste plain text or JSON here">Player account restore: user reinstalls app and wants to restore previous progress. Restore should work for linked accounts and show a clear error when it fails.</textarea>
+          </label>
+
+          <div class="helper">You can paste plain text or JSON. Plain text will be sent as a <code>text</code> field automatically.</div>
+
+          <label>
+            OpenAPI document
+            <textarea
+              id="openapi-input"
+              name="openapi_input"
+              placeholder="Paste OpenAPI JSON or YAML here (optional)"
+              style="min-height: 180px;"
+            ></textarea>
+          </label>
+
+          <div class="helper">Optional: paste an OpenAPI schema here. It will be attached as <code>input.openapi_document</code>.</div>
+
+          <label>
+            Service name
+            <input
+              id="service-name-input"
+              name="service_name"
+              type="text"
+              placeholder="e.g. account-service"
+            />
+          </label>
+
+          <label>
+            Architecture / microservice context
+            <textarea
+              id="architecture-context-input"
+              name="architecture_context"
+              placeholder="Paste service boundaries, dependencies, flows, failure modes, queues, DBs, downstream integrations..."
+              style="min-height: 160px;"
+            ></textarea>
+          </label>
+
+          <label>
+            Related docs
+            <textarea
+              id="related-docs-input"
+              name="related_docs"
+              placeholder="One item per line: PRD, ADR, Confluence link, repo path, runbook, test strategy..."
+              style="min-height: 120px;"
+            ></textarea>
+          </label>
+
+          <label style="display:flex; align-items:center; gap:10px;">
+            <input id="use-rag-toggle" name="use_rag" type="checkbox" checked />
+            <span>Use RAG context for this task</span>
+          </label>
+
+          <div class="helper">These fields will be attached to task input as structured context for retrieval and prompt enrichment.</div>
+
+          <button type="submit">Create task</button>
+        </form>
+      </section>
+
+      <section class="card new-task" style="display:grid; gap:12px;">
+
+      <section class="card new-task knowledge-grid">
+        <div class="top-row">
+          <h2 class="section-title" style="margin:0;">Knowledge base</h2>
+          <div class="knowledge-actions">
+            <button id="refresh-knowledge" class="secondary" type="button">Refresh docs</button>
+          </div>
+        </div>
+
+        <label>
+          Knowledge title
+          <input id="knowledge-title" type="text" placeholder="e.g. Account service OpenAPI" />
+        </label>
+
+        <label>
+          Service name
+          <input id="knowledge-service-name" type="text" placeholder="e.g. account-service" />
+        </label>
+
+        <label>
+          Document type
+          <select id="knowledge-doc-type">
+            <option value="openapi">OpenAPI</option>
+            <option value="markdown">Markdown</option>
+            <option value="runbook">Runbook</option>
+            <option value="architecture">Architecture</option>
+            <option value="prd">PRD</option>
+            <option value="adr">ADR</option>
+            <option value="general">General</option>
+          </select>
+        </label>
+
+        <label>
+          Tags
+          <input id="knowledge-tags" type="text" placeholder="Comma separated, e.g. restore-flow, api, auth" />
+        </label>
+
+        <label>
+          Knowledge content
+          <textarea id="knowledge-content" placeholder="Paste markdown, service description, OpenAPI JSON/YAML, runbook or architecture notes here" style="min-height:220px;"></textarea>
+        </label>
+
+        <div class="knowledge-actions">
+          <button id="upload-knowledge" type="button">Upload to knowledge base</button>
+          <span class="helper">Use this for reusable documents that should be searchable by RAG.</span>
+        </div>
+
+        <div id="knowledge-status" class="helper">Knowledge base not loaded yet.</div>
+        <div id="knowledge-list" class="knowledge-list">
+          <div class="empty">No knowledge documents loaded yet.</div>
+        </div>
+      </section>
+
+        <div class="top-row">
+          <h2 class="section-title" style="margin:0;">Tasks</h2>
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+            <div class="circuit-status-bar" id="circuit-status-bar" title="LLM provider availability">
+              <span class="circuit-badge unknown" id="ollama-circuit-badge"><span class="dot"></span>Ollama: —</span>
+              <span class="circuit-badge unknown" id="openai-circuit-badge"><span class="dot"></span>OpenAI: —</span>
+            </div>
+            <div class="auto-refresh-bar">
+              <div id="auto-refresh-dot" class="auto-refresh-dot"></div>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input id="auto-refresh-toggle" type="checkbox" />
+                Auto-refresh
+              </label>
+              <select id="auto-refresh-interval">
+                <option value="5">5 s</option>
+                <option value="15" selected>15 s</option>
+                <option value="30">30 s</option>
+                <option value="60">60 s</option>
+              </select>
+            </div>
+            <button id="refresh-button" class="secondary" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="task-sticky-header">
+          <div class="task-toolbar">
+            <input id="task-search" type="search" placeholder="Search by task type, id, or text" />
+            <div class="task-filters">
+              <select id="task-state-filter">
+                <option value="all">All states</option>
+                <option value="queued">Queued</option>
+                <option value="running">Running</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <select id="task-type-filter">
+                <option value="all">All types</option>
+                <option value="requirements_analysis">Requirements</option>
+                <option value="manual_test_case_review">Manual review</option>
+                <option value="test_plan">Test plan</option>
+                <option value="test_report">Test report</option>
+                <option value="release_readiness">Release</option>
+                <option value="test_case_generation">Test cases</option>
+              </select>
+              <select id="task-sort">
+                <option value="updated_desc">Updated ↓</option>
+                <option value="created_desc">Created ↓</option>
+                <option value="state_asc">State A→Z</option>
+                <option value="type_asc">Type A→Z</option>
+              </select>
+            </div>
+            <div class="task-stats" id="task-stats">
+              <div class="task-stat">Waiting for data</div>
+            </div>
+          </div>
+        </div>
+        <div class="bulk-bar">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input id="select-visible-tasks" type="checkbox" />
+            Select visible
+          </label>
+          <button id="bulk-copy-ids" class="secondary" type="button">Copy IDs</button>
+          <button id="bulk-export-json" class="secondary" type="button">Export selected</button>
+          <button id="bulk-export-csv" class="secondary export-csv-btn" type="button">Export CSV</button>
+        </div>
+        <div class="task-summary" id="task-summary">Loading tasks…</div>
+        <div id="task-list" class="task-list">
+          <div class="empty">No tasks loaded yet.</div>
+        </div>
+        <div class="task-pagination">
+          <div class="task-pagination-controls">
+            <button id="prev-page" class="secondary" type="button">Prev</button>
+            <div class="task-summary" id="page-indicator">Page 1</div>
+            <button id="next-page" class="secondary" type="button">Next</button>
+          </div>
+          <label style="display:flex; align-items:center; gap:8px; color:var(--muted);">
+            Page size
+            <select id="page-size">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </div>
+      </section>
+    </aside>
+
+    <div id="app-splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
+
+    <main class="main">
+      <section class="card hero">
+        <div>
+          <h2>QA Lead multi-agent flow</h2>
+          <p>
+            Create a task on the left, then inspect its artifact, result structure and event timeline here.
+            The detail panel adapts to the returned <code>artifact_type</code>.
+          </p>
+          <div class="hero-meta" id="hero-meta">
+            <div class="hero-pill">Task list ready</div>
+            <div class="hero-pill">Model-aware input</div>
+            <div class="hero-pill">Live task monitoring</div>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button id="reload-detail" class="secondary" type="button">Reload selected task</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <section class="card panel">
+          <div class="top-row">
+            <h3 style="margin:0;">Task detail</h3>
+            <div class="detail-actions">
+              <button id="copy-result" class="secondary" type="button">Copy result</button>
+            </div>
+          </div>
+          <div id="task-detail" class="detail-grid">
+            <div class="empty">Select a task to inspect the result.</div>
+          </div>
+        </section>
+
+        <section class="card panel">
+          <div class="top-row">
+            <h3 style="margin:0;">Event timeline</h3>
+            <button id="timeline-toggle" class="secondary" type="button">Compact timeline</button>
+          </div>
+          <input id="timeline-search" class="timeline-search" type="search" placeholder="Filter timeline by text, error, artifact, status..." />
+          <div id="task-events" class="timeline compact">
+            <div class="empty">Task events will appear here.</div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8001";
+    const RAG_API_BASE = "http://127.0.0.1:8005";
+    const taskListEl = document.getElementById("task-list");
+    const taskDetailEl = document.getElementById("task-detail");
+    const taskEventsEl = document.getElementById("task-events");
+    const taskFormEl = document.getElementById("task-form");
+    const refreshButtonEl = document.getElementById("refresh-button");
+    const reloadDetailButtonEl = document.getElementById("reload-detail");
+    const gatewayBaseUrl = "http://127.0.0.1:8003";
+    const modelProviderEl = document.getElementById("model-provider");
+    const modelNameEl = document.getElementById("model-name");
+    const modelStatusEl = document.getElementById("model-status");
+    const reloadModelsEl = document.getElementById("reload-models");
+    const taskSearchEl = document.getElementById("task-search");
+    const taskStateFilterEl = document.getElementById("task-state-filter");
+    const taskTypeFilterEl = document.getElementById("task-type-filter");
+    const taskSortEl = document.getElementById("task-sort");
+    const taskStatsEl = document.getElementById("task-stats");
+    const copyResultButtonEl = document.getElementById("copy-result");
+    const taskSummaryEl = document.getElementById("task-summary");
+    const selectVisibleTasksEl = document.getElementById("select-visible-tasks");
+    const bulkCopyIdsEl = document.getElementById("bulk-copy-ids");
+    const bulkExportJsonEl = document.getElementById("bulk-export-json");
+    const bulkExportCsvEl = document.getElementById("bulk-export-csv");
+    const ollamaBadgeEl  = document.getElementById("ollama-circuit-badge");
+    const openaiBadgeEl  = document.getElementById("openai-circuit-badge");
+    const prevPageEl = document.getElementById("prev-page");
+    const nextPageEl = document.getElementById("next-page");
+    const pageIndicatorEl = document.getElementById("page-indicator");
+    const pageSizeEl = document.getElementById("page-size");
+    const timelineToggleEl = document.getElementById("timeline-toggle");
+    const timelineSearchEl = document.getElementById("timeline-search");
+    const knowledgeTitleEl = document.getElementById("knowledge-title");
+    const knowledgeServiceNameEl = document.getElementById("knowledge-service-name");
+    const knowledgeDocTypeEl = document.getElementById("knowledge-doc-type");
+    const knowledgeTagsEl = document.getElementById("knowledge-tags");
+    const knowledgeContentEl = document.getElementById("knowledge-content");
+    const uploadKnowledgeEl = document.getElementById("upload-knowledge");
+    const refreshKnowledgeEl = document.getElementById("refresh-knowledge");
+    const knowledgeStatusEl = document.getElementById("knowledge-status");
+    const knowledgeListEl = document.getElementById("knowledge-list");
+    const toastContainerEl = document.getElementById("toast-container");
+    const autoRefreshToggleEl = document.getElementById("auto-refresh-toggle");
+    const autoRefreshIntervalEl = document.getElementById("auto-refresh-interval");
+    const autoRefreshDotEl = document.getElementById("auto-refresh-dot");
+    const commandPaletteBackdropEl = document.getElementById("command-palette-backdrop");
+    const commandPaletteSearchEl = document.getElementById("command-palette-search");
+    const commandPaletteListEl = document.getElementById("command-palette-list");
+    const appShellEl = document.getElementById("app-shell");
+    const appSplitterEl = document.getElementById("app-splitter");
+
+
+    let tasksCache = [];
+    let filteredTasksCache = [];
+    let selectedTaskId = null;
+    let activeSavedView = "all";
+    let currentEventSource = null;
+    let autoRefreshTimer = null;
+    let currentPage = 1;
+    let pageSize = 20;
+    let isCompactTimeline = true;
+    let selectedTaskIds = new Set();
+    let pinnedTaskIds = new Set();
+    let autoRefreshEnabled = false;
+    let commandPaletteIndex = 0;
+
+    const UI_STATE_KEY = "qa-console-ui-state";
+    const PINNED_TASKS_KEY = "qa-console-pinned-tasks";
+    const SIDEBAR_WIDTH_KEY = "qa-console-sidebar-width";
+    const DEFAULT_SIDEBAR_WIDTH = 360;
+    const MIN_SIDEBAR_WIDTH = 280;
+    const MAX_SIDEBAR_WIDTH = 640;
+
+    function loadUiState() {
+      try {
+        return JSON.parse(localStorage.getItem(UI_STATE_KEY) || "{}");
+      } catch {
+        return {};
+      }
+    }
+
+    function saveUiState() {
+      try {
+        localStorage.setItem(UI_STATE_KEY, JSON.stringify({
+          search: taskSearchEl?.value || "",
+          state: taskStateFilterEl?.value || "all",
+          type: taskTypeFilterEl?.value || "all",
+          sort: taskSortEl?.value || "updated_desc",
+          timelineSearch: timelineSearchEl?.value || "",
+          pageSize,
+          compactTimeline: isCompactTimeline,
+        }));
+      } catch {}
+    }
+
+    function applyUiState() {
+      const state = loadUiState();
+      if (taskSearchEl && typeof state.search === "string") taskSearchEl.value = state.search;
+      if (taskStateFilterEl && typeof state.state === "string") taskStateFilterEl.value = state.state;
+      if (taskTypeFilterEl && typeof state.type === "string") taskTypeFilterEl.value = state.type;
+      if (taskSortEl && typeof state.sort === "string") taskSortEl.value = state.sort;
+      if (timelineSearchEl && typeof state.timelineSearch === "string") timelineSearchEl.value = state.timelineSearch;
+      if (pageSizeEl && state.pageSize) {
+        pageSize = Number(state.pageSize) || 20;
+        pageSizeEl.value = String(pageSize);
+      }
+      isCompactTimeline = typeof state.compactTimeline === "boolean" ? state.compactTimeline : true;
+      if (taskEventsEl) {
+        taskEventsEl.classList.toggle("compact", isCompactTimeline);
+      }
+      if (timelineToggleEl) {
+        timelineToggleEl.textContent = isCompactTimeline ? "Expanded timeline" : "Compact timeline";
+      }
+    }
+
+    const FINAL_TASK_STATES = new Set(["completed", "failed", "cancelled", "rejected"]);
+
+    function stopAutoRefresh() {
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+      }
+    }
+
+    function startAutoRefresh(taskId) {
+      stopAutoRefresh();
+      if (!taskId) return;
+
+      autoRefreshTimer = setInterval(async () => {
+        try {
+          await loadTasks(true);
+          const task = tasksCache.find((item) => item.task_id === taskId);
+          if (!task) return;
+
+          await loadTaskDetail(taskId);
+
+          if (FINAL_TASK_STATES.has(String(task.state || "").toLowerCase())) {
+            stopAutoRefresh();
+          }
+        } catch (error) {
+          console.warn("Auto-refresh failed:", error);
+        }
+      }, 4000);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function describeTaskInput(task) {
+      const input = task?.input;
+      if (!input) return "";
+      if (typeof input.text === "string") return input.text;
+      if (typeof input.story_title === "string") return input.story_title;
+      return JSON.stringify(input);
+    }
+
+    function applyTaskFilters(tasks) {
+      const search = (taskSearchEl?.value || "").trim().toLowerCase();
+      const stateFilter = (taskStateFilterEl?.value || "all").toLowerCase();
+      const typeFilter = (taskTypeFilterEl?.value || "all").toLowerCase();
+      const sortBy = taskSortEl?.value || "updated_desc";
+
+      const filtered = tasks.filter((task) => {
+        const state = String(task.state || "").toLowerCase();
+        const type = String(task.task_type || "").toLowerCase();
+        const haystack = [task.task_id || "", task.task_type || "", describeTaskInput(task), task.created_at || "", task.updated_at || ""].join(" ").toLowerCase();
+
+        if (activeSavedView === "pinned" && !pinnedTaskIds.has(task.task_id)) return false;
+        if (stateFilter !== "all" && state !== stateFilter) return false;
+        if (typeFilter !== "all" && type !== typeFilter) return false;
+        if (search && !haystack.includes(search)) return false;
+        return true;
+      });
+
+      const stateRank = { running: 0, queued: 1, completed: 2, failed: 3, cancelled: 4 };
+
+      filtered.sort((a, b) => {
+        const aPinned = pinnedTaskIds.has(a.task_id) ? 1 : 0;
+        const bPinned = pinnedTaskIds.has(b.task_id) ? 1 : 0;
+        if (aPinned !== bPinned) return bPinned - aPinned;
+
+        if (sortBy === "created_desc") return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+        if (sortBy === "state_asc") return (stateRank[String(a.state || "").toLowerCase()] ?? 99) - (stateRank[String(b.state || "").toLowerCase()] ?? 99);
+        if (sortBy === "type_asc") return String(a.task_type || "").localeCompare(String(b.task_type || ""));
+        return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""));
+      });
+
+      return filtered;
+    }
+
+    function formatEventSummary(item) {
+      const payload = item?.payload || item?.data || {};
+      if (typeof payload === "string") return payload;
+      if (payload?.message) return String(payload.message);
+      if (payload?.status) return `Status: ${payload.status}`;
+      if (payload?.artifact_type) return `Artifact: ${payload.artifact_type}`;
+      return prettyJson(payload);
+    }
+
+    function prettyJson(value) {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value ?? "");
+      }
+    }
+
+    function loadPinnedTasks() {
+      try {
+        return new Set(JSON.parse(localStorage.getItem(PINNED_TASKS_KEY) || "[]"));
+      } catch {
+        return new Set();
+      }
+    }
+
+    function savePinnedTasks() {
+      try {
+        localStorage.setItem(PINNED_TASKS_KEY, JSON.stringify(Array.from(pinnedTaskIds)));
+      } catch {}
+    }
+
+    function togglePinnedTask(taskId) {
+      if (pinnedTaskIds.has(taskId)) pinnedTaskIds.delete(taskId);
+      else pinnedTaskIds.add(taskId);
+      savePinnedTasks();
+      renderTaskList(tasksCache);
+    }
+
+    function getVisibleTaskIds() {
+      return Array.from(taskListEl.querySelectorAll("[data-task-id]"))
+        .map((el) => el.getAttribute("data-task-id"))
+        .filter(Boolean);
+    }
+
+    function downloadJson(filename, data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function showToast(message, type = "success", duration = 3000) {
+      if (!toastContainerEl) return;
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      toastContainerEl.appendChild(toast);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => toast.classList.add("show"));
+      });
+      setTimeout(() => {
+        toast.classList.remove("show");
+        toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+      }, duration);
+    }
+
+    function collectLogEvents(task) {
+      if (!task) return [];
+      const logs = [];
+      const result = task.result || {};
+
+      if (Array.isArray(result.logs)) {
+        result.logs.forEach((entry, i) => {
+          logs.push({
+            event_type: `log:${i}`,
+            summary: typeof entry === "string" ? entry : JSON.stringify(entry),
+            created_at: task.updated_at || task.created_at || ""
+          });
+        });
+      }
+
+      for (const [key, val] of Object.entries(result)) {
+        if (typeof val === "string") {
+          const lc = val.toLowerCase();
+          if (lc.includes("error") || lc.includes("warn") || lc.includes("info") || lc.includes("debug") || lc.includes("log")) {
+            logs.push({
+              event_type: `log:${key}`,
+              summary: val,
+              created_at: task.updated_at || task.created_at || ""
+            });
+          }
+        }
+      }
+
+      return logs;
+    }
+
+    function stopAutoRefresh() {
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+      }
+    }
+
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      const interval = Number(autoRefreshIntervalEl?.value || 15) * 1000;
+      autoRefreshTimer = setInterval(async () => {
+        if (!autoRefreshEnabled) return;
+        autoRefreshDotEl?.classList.add("active");
+        try {
+          await loadTasks(false);
+          if (selectedTaskId) await loadTaskDetail(selectedTaskId);
+        } catch (error) {
+          console.warn("Auto-refresh error:", error);
+        } finally {
+          setTimeout(() => autoRefreshDotEl?.classList.remove("active"), 700);
+        }
+      }, interval);
+    }
+
+    function isCommandPaletteOpen() {
+      return commandPaletteBackdropEl?.classList.contains("open");
+    }
+
+    function buildCommandPaletteItems() {
+      return [
+        {
+          id: "refresh",
+          title: "Refresh tasks",
+          hint: "Reload task list",
+          run: async () => {
+            await loadTasks(true);
+            showToast("Tasks refreshed");
+          }
+        },
+        {
+          id: "focus-search",
+          title: "Focus task search",
+          hint: "Jump to the task search field",
+          run: async () => {
+            taskSearchEl.focus();
+            taskSearchEl.select?.();
+          }
+        },
+        {
+          id: "copy-result",
+          title: "Copy selected result",
+          hint: "Copy current task result JSON",
+          run: async () => {
+            copyResultButtonEl.click();
+          }
+        },
+        {
+          id: "copy-ids",
+          title: "Copy selected task IDs",
+          hint: "Copy bulk-selected IDs",
+          run: async () => {
+            bulkCopyIdsEl.click();
+          }
+        },
+        {
+          id: "export-selected",
+          title: "Export selected tasks",
+          hint: "Download selected tasks as JSON",
+          run: async () => {
+            bulkExportJsonEl.click();
+          }
+        },
+        {
+          id: "toggle-auto-refresh",
+          title: autoRefreshEnabled ? "Disable auto-refresh" : "Enable auto-refresh",
+          hint: "Toggle periodic refresh",
+          run: async () => {
+            autoRefreshToggleEl.checked = !autoRefreshToggleEl.checked;
+            autoRefreshToggleEl.dispatchEvent(new Event("change"));
+          }
+        },
+        {
+          id: "next-task",
+          title: "Select next visible task",
+          hint: "Same as J",
+          run: async () => {
+            const visibleIds = getVisibleTaskIds();
+            const currentIndex = visibleIds.indexOf(selectedTaskId);
+            const nextId = visibleIds[Math.min(visibleIds.length - 1, currentIndex + 1 >= 0 ? currentIndex + 1 : 0)];
+            if (nextId) await selectTask(nextId);
+          }
+        },
+        {
+          id: "prev-task",
+          title: "Select previous visible task",
+          hint: "Same as K",
+          run: async () => {
+            const visibleIds = getVisibleTaskIds();
+            const currentIndex = visibleIds.indexOf(selectedTaskId);
+            const nextId = visibleIds[Math.max(0, currentIndex > 0 ? currentIndex - 1 : 0)];
+            if (nextId) await selectTask(nextId);
+          }
+        }
+      ];
+    }
+
+    function renderCommandPalette() {
+      const query = (commandPaletteSearchEl?.value || "").trim().toLowerCase();
+      const items = buildCommandPaletteItems().filter((item) => {
+        const haystack = `${item.title} ${item.hint}`.toLowerCase();
+        return !query || haystack.includes(query);
+      });
+
+      if (!items.length) {
+        commandPaletteListEl.innerHTML = `<div class="command-item"><strong>No commands found</strong><small>Try another search</small></div>`;
+        return [];
+      }
+
+      if (commandPaletteIndex >= items.length) commandPaletteIndex = 0;
+
+      commandPaletteListEl.innerHTML = items.map((item, index) => `
+        <button class="command-item ${index === commandPaletteIndex ? "active" : ""}" data-command-id="${item.id}" type="button">
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${escapeHtml(item.hint)}</small>
+        </button>
+      `).join("");
+
+      for (const button of commandPaletteListEl.querySelectorAll("[data-command-id]")) {
+        button.addEventListener("click", async () => {
+          const id = button.getAttribute("data-command-id");
+          const selected = items.find((item) => item.id === id);
+          if (!selected) return;
+          closeCommandPalette();
+          await selected.run();
+        });
+      }
+
+      return items;
+    }
+
+    function openCommandPalette() {
+      commandPaletteIndex = 0;
+      commandPaletteBackdropEl?.classList.add("open");
+      renderCommandPalette();
+      setTimeout(() => commandPaletteSearchEl?.focus(), 0);
+    }
+
+    function closeCommandPalette() {
+      commandPaletteBackdropEl?.classList.remove("open");
+      if (commandPaletteSearchEl) commandPaletteSearchEl.value = "";
+    }
+
+    function clampSidebarWidth(value) {
+      return Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, value));
+    }
+
+    function applySidebarWidth(value) {
+      const width = clampSidebarWidth(Number(value) || DEFAULT_SIDEBAR_WIDTH);
+      appShellEl?.style.setProperty("--sidebar-width", `${width}px`);
+      return width;
+    }
+
+    function loadSidebarWidth() {
+      try {
+        const raw = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+        if (!raw) return DEFAULT_SIDEBAR_WIDTH;
+        return clampSidebarWidth(Number(raw));
+      } catch {
+        return DEFAULT_SIDEBAR_WIDTH;
+      }
+    }
+
+    function saveSidebarWidth(value) {
+      try {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(clampSidebarWidth(value)));
+      } catch {}
+    }
+
+    function setupSplitter() {
+      if (!appShellEl || !appSplitterEl) return;
+
+      let dragging = false;
+
+      const handleMouseMove = (event) => {
+        const width = clampSidebarWidth(event.clientX);
+        applySidebarWidth(width);
+      };
+
+      const handleMouseUp = () => {
+        if (!dragging) return;
+        dragging = false;
+        appShellEl.classList.remove("resizing");
+        appSplitterEl.classList.remove("dragging");
+        const currentWidth = parseFloat(getComputedStyle(appShellEl).getPropertyValue("--sidebar-width"));
+        saveSidebarWidth(currentWidth);
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      appSplitterEl.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        dragging = true;
+        appShellEl.classList.add("resizing");
+        appSplitterEl.classList.add("dragging");
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+      });
+
+      appSplitterEl.addEventListener("dblclick", () => {
+        const width = applySidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+        saveSidebarWidth(width);
+        showToast("Sidebar width reset");
+      });
+    }
+
+    function stateBadge(state) {
+      const normalized = String(state || "unknown").toLowerCase();
+      return `<span class="badge state-${escapeHtml(normalized)}">${escapeHtml(normalized)}</span>`;
+    }
+
+    function taskSnippet(task) {
+      const input = task?.input || {};
+
+      if (typeof input.story_title === "string" && input.story_title.trim()) {
+        return input.story_title.trim();
+      }
+      if (typeof input.story === "string" && input.story.trim()) {
+        return input.story.trim();
+      }
+      if (typeof input.story_description === "string" && input.story_description.trim()) {
+        return input.story_description.trim();
+      }
+      if (Array.isArray(input.release_scope) && input.release_scope.length) {
+        return input.release_scope.join(", ");
+      }
+
+      return "No summary input";
+    }
+
+    function renderStringList(items) {
+      if (!Array.isArray(items) || !items.length) return `<p>—</p>`;
+      return `<ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+    }
+
+    function renderRequirementAnalysis(result) {
+      return `
+        <div class="artifact-block">
+          <div class="artifact-box">
+            <h4>Summary</h4>
+            <p>${escapeHtml(result.summary || "—")}</p>
+          </div>
+          <div class="artifact-box">
+            <h4>Clarity findings</h4>
+            ${renderStringList(result.clarity_findings)}
+          </div>
+          <div class="artifact-box">
+            <h4>Coverage gaps</h4>
+            ${renderStringList(result.coverage_gaps)}
+          </div>
+          <div class="artifact-box">
+            <h4>Assumptions</h4>
+            ${renderStringList(result.assumptions)}
+          </div>
+          <div class="artifact-box">
+            <h4>Questions for refinement</h4>
+            ${renderStringList(result.questions_for_refinement)}
+          </div>
+          <div class="artifact-box">
+            <h4>Suggested test areas</h4>
+            ${renderStringList(result.suggested_test_areas)}
+          </div>
+          <div class="artifact-box">
+            <h4>QA priority</h4>
+            <p>${escapeHtml(result.qa_priority || "—")}</p>
+          </div>
+          <div class="artifact-box">
+            <h4>Requirements under test</h4>
+            ${renderStringList(result.requirements_under_test)}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTestCaseReview(result) {
+      return `
+        <div class="artifact-block">
+          <div class="artifact-box">
+            <h4>Summary</h4>
+            <p>${escapeHtml(result.summary || "—")}</p>
+          </div>
+          <div class="artifact-box"><h4>Structure issues</h4>${renderStringList(result.structure_issues)}</div>
+          <div class="artifact-box"><h4>Clarity issues</h4>${renderStringList(result.clarity_issues)}</div>
+          <div class="artifact-box"><h4>Coverage issues</h4>${renderStringList(result.coverage_issues)}</div>
+          <div class="artifact-box"><h4>Duplicates</h4>${renderStringList(result.duplicates)}</div>
+          <div class="artifact-box"><h4>Missing negative cases</h4>${renderStringList(result.missing_negative_cases)}</div>
+          <div class="artifact-box"><h4>Improvement actions</h4>${renderStringList(result.improvement_actions)}</div>
+          <div class="artifact-box"><h4>Review score</h4><p>${escapeHtml(result.review_score || "—")}</p></div>
+        </div>
+      `;
+    }
+
+    function renderTestPlan(result) {
+      return `
+        <div class="artifact-block">
+          <div class="artifact-box"><h4>Summary</h4><p>${escapeHtml(result.summary || "—")}</p></div>
+          <div class="artifact-box"><h4>Scope in</h4>${renderStringList(result.scope_in)}</div>
+          <div class="artifact-box"><h4>Scope out</h4>${renderStringList(result.scope_out)}</div>
+          <div class="artifact-box"><h4>Test levels</h4>${renderStringList(result.test_levels)}</div>
+          <div class="artifact-box"><h4>Dependencies</h4>${renderStringList(result.dependencies)}</div>
+          <div class="artifact-box"><h4>Environment requirements</h4>${renderStringList(result.env_requirements)}</div>
+          <div class="artifact-box"><h4>Test data needs</h4>${renderStringList(result.test_data_needs)}</div>
+          <div class="artifact-box"><h4>Entry criteria</h4>${renderStringList(result.entry_criteria)}</div>
+          <div class="artifact-box"><h4>Exit criteria</h4>${renderStringList(result.exit_criteria)}</div>
+          <div class="artifact-box"><h4>Staffing notes</h4>${renderStringList(result.staffing_notes)}</div>
+        </div>
+      `;
+    }
+
+    function renderTestReport(result) {
+      const pfb = result.pass_fail_blocked || {};
+      return `
+        <div class="artifact-block">
+          <div class="artifact-box"><h4>Summary</h4><p>${escapeHtml(result.summary || "—")}</p></div>
+          <div class="artifact-box"><h4>Tested scope</h4>${renderStringList(result.tested_scope)}</div>
+          <div class="artifact-box"><h4>Not tested scope</h4>${renderStringList(result.not_tested_scope)}</div>
+          <div class="artifact-box">
+            <h4>Pass / fail / blocked</h4>
+            <div class="kv"><div class="key">Passed</div><div>${escapeHtml(pfb.passed ?? "—")}</div></div>
+            <div class="kv"><div class="key">Failed</div><div>${escapeHtml(pfb.failed ?? "—")}</div></div>
+            <div class="kv"><div class="key">Blocked</div><div>${escapeHtml(pfb.blocked ?? "—")}</div></div>
+          </div>
+          <div class="artifact-box"><h4>Blockers</h4>${renderStringList(result.blockers)}</div>
+          <div class="artifact-box"><h4>Risks</h4>${renderStringList(result.risks)}</div>
+          <div class="artifact-box"><h4>Quality assessment</h4><p>${escapeHtml(result.quality_assessment || "—")}</p></div>
+          <div class="artifact-box"><h4>Recommendation</h4><p>${escapeHtml(result.recommendation || "—")}</p></div>
+          <div class="artifact-box"><h4>Signoff status</h4><p>${escapeHtml(result.signoff_status || "—")}</p></div>
+        </div>
+      `;
+    }
+
+    function renderReleaseReadiness(result) {
+      return `
+        <div class="artifact-block">
+          <div class="artifact-box"><h4>Summary</h4><p>${escapeHtml(result.summary || "—")}</p></div>
+          <div class="artifact-box"><h4>Release decision</h4><p>${escapeHtml(result.release_decision || "—")}</p></div>
+          <div class="artifact-box"><h4>Decision reasoning</h4>${renderStringList(result.decision_reasoning)}</div>
+          <div class="artifact-box"><h4>Must fix before release</h4>${renderStringList(result.must_fix_before_release)}</div>
+          <div class="artifact-box"><h4>Acceptable known issues</h4>${renderStringList(result.acceptable_known_issues)}</div>
+          <div class="artifact-box"><h4>Follow-up actions</h4>${renderStringList(result.follow_up_actions)}</div>
+        </div>
+      `;
+    }
+
+    function renderTestCaseBundle(result) {
+      const testCases = Array.isArray(result.test_cases) ? result.test_cases : [];
+      const requirements = Array.isArray(result.requirements_under_test) ? result.requirements_under_test : [];
+
+      return `
+        <div class="artifact-block">
+          <div class="artifact-box">
+            <h4>Summary</h4>
+            <p>${escapeHtml(result.summary || "—")}</p>
+          </div>
+          <div class="artifact-box">
+            <h4>Requirements under test</h4>
+            ${renderStringList(requirements)}
+          </div>
+          <div class="artifact-box">
+            <h4>Test cases</h4>
+            ${testCases.length ? testCases.map(tc => `
+              <div class="artifact-box" style="margin-top:12px;">
+                <h4>${escapeHtml(tc.id || "")} ${escapeHtml(tc.title || "Untitled test case")}</h4>
+                <p><strong>Expected result:</strong> ${escapeHtml(tc.expected_result || "—")}</p>
+                <div>
+                  <strong>Steps:</strong>
+                  ${Array.isArray(tc.steps) && tc.steps.length
+                    ? `<ol>${tc.steps.map(step => `<li>${escapeHtml(step)}</li>`).join("")}</ol>`
+                    : `<p>—</p>`}
+                </div>
+              </div>
+            `).join("") : `<p>No structured test cases in this artifact yet.</p>`}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderArtifact(result) {
+      const artifactType = result?.artifact_type || "";
+
+      if (artifactType === "qa_requirement_analysis") return renderRequirementAnalysis(result);
+      if (artifactType === "qa_test_case_review_report") return renderTestCaseReview(result);
+      if (artifactType === "qa_test_plan") return renderTestPlan(result);
+      if (artifactType === "qa_test_report") return renderTestReport(result);
+      if (artifactType === "qa_release_readiness_report") return renderReleaseReadiness(result);
+
+      return renderTestCaseBundle(result);
+    }
+
+    function renderTaskList(tasks) {
+      filteredTasksCache = applyTaskFilters(tasks);
+
+      const total = filteredTasksCache.length;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const start = (currentPage - 1) * pageSize;
+      const pageItems = filteredTasksCache.slice(start, start + pageSize);
+
+      taskSummaryEl.textContent = total
+        ? `Showing ${pageItems.length} of ${total} filtered task(s)`
+        : "No tasks match the current filters.";
+
+      const runningCount = filteredTasksCache.filter((task) => String(task.state || "").toLowerCase() === "running").length;
+      const failedCount = filteredTasksCache.filter((task) => String(task.state || "").toLowerCase() === "failed").length;
+      const completedCount = filteredTasksCache.filter((task) => String(task.state || "").toLowerCase() === "completed").length;
+      taskStatsEl.innerHTML = `
+        <div class="task-stat">Filtered: ${filteredTasksCache.length}</div>
+        <div class="task-stat">Running: ${runningCount}</div>
+        <div class="task-stat">Completed: ${completedCount}</div>
+        <div class="task-stat">Failed: ${failedCount}</div>
+      `;
+
+      pageIndicatorEl.textContent = `Page ${currentPage} of ${totalPages}`;
+      prevPageEl.disabled = currentPage <= 1;
+      nextPageEl.disabled = currentPage >= totalPages;
+
+      if (!pageItems.length) {
+        taskListEl.innerHTML = `<div class="empty">No tasks match the current filters.</div>`;
+        return;
+      }
+
+      taskListEl.innerHTML = pageItems.map(task => `
+        <div class="task-item-shell">
+          <input class="task-check" data-task-check="${escapeHtml(task.task_id)}" type="checkbox" ${selectedTaskIds.has(task.task_id) ? "checked" : ""} />
+          <button class="task-item ${task.task_id === selectedTaskId ? "active" : ""}" data-task-id="${escapeHtml(task.task_id)}" type="button">
+            <div class="task-top">
+              <div style="display:grid; gap:4px;">
+                <strong>${escapeHtml(task.task_type || "unknown")}</strong>
+                <span class="task-id">${escapeHtml(task.task_id)}</span>
+              </div>
+              ${stateBadge(task.state)}
+            </div>
+            <div class="story-snippet">${escapeHtml(taskSnippet(task))}</div>
+          </button>
+          <button class="pin-button ${pinnedTaskIds.has(task.task_id) ? "active" : ""}" data-pin-task="${escapeHtml(task.task_id)}" type="button">${pinnedTaskIds.has(task.task_id) ? "★" : "☆"}</button>
+        </div>
+      `).join("");
+
+      for (const button of taskListEl.querySelectorAll(".task-item")) {
+        button.addEventListener("click", () => {
+          const taskId = button.getAttribute("data-task-id");
+          if (taskId) {
+            selectTask(taskId);
+          }
+        });
+      }
+
+      for (const checkbox of taskListEl.querySelectorAll("[data-task-check]")) {
+        checkbox.addEventListener("change", () => {
+          const taskId = checkbox.getAttribute("data-task-check");
+          if (!taskId) return;
+          if (checkbox.checked) selectedTaskIds.add(taskId);
+          else selectedTaskIds.delete(taskId);
+        });
+      }
+
+      for (const pinButton of taskListEl.querySelectorAll("[data-pin-task]")) {
+        pinButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const taskId = pinButton.getAttribute("data-pin-task");
+          if (taskId) togglePinnedTask(taskId);
+        });
+      }
+    }
+
+    function renderTaskDetail(task) {
+      if (!task) {
+        taskDetailEl.innerHTML = `<div class="empty">Select a task to inspect the result.</div>`;
+        return;
+      }
+
+      const result = task.result || null;
+      let artifactHtml = `<div class="empty">No artifact available yet.</div>`;
+
+      if (result) {
+        artifactHtml = `
+          <div class="artifact-block">
+            <div class="artifact-box">
+              <h4>Generated artifact</h4>
+              <div class="kv"><div class="key">Artifact type</div><div>${escapeHtml(result.artifact_type || "—")}</div></div>
+              <div class="kv"><div class="key">Schema version</div><div>${escapeHtml(result.schema_version || "—")}</div></div>
+              <div class="kv"><div class="key">Provider</div><div>${escapeHtml(result.generated_by?.provider || "—")}</div></div>
+              <div class="kv"><div class="key">Model</div><div>${escapeHtml(result.generated_by?.model_name || "—")}</div></div>
+              <div class="kv"><div class="key">Agent</div><div>${escapeHtml(result.generated_by?.agent_id || "—")}</div></div>
+              <div class="kv"><div class="key">RAG context</div><div>${escapeHtml((JSON.stringify(result).match(/RAG [^"]+ document|RAG uniqueness test document/gi) || []).filter((v, i, a) => a.indexOf(v) === i).join(", ") || "none detected")}</div></div>
+            </div>
+            ${renderArtifact(result)}
+          </div>
+        `;
+      }
+
+      taskDetailEl.innerHTML = `
+        <div class="artifact-block">
+          <div class="artifact-box">
+            <h4 style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+              <span>Task metadata</span>
+              <button id="retry-task-button" class="retry-task-btn ${task.state === "failed" ? "" : "hidden"}" type="button">↻ Retry failed task</button>
+            </h4>
+            <div class="kv"><div class="key">Task ID</div><div>${escapeHtml(task.task_id)}</div></div>
+            <div class="kv"><div class="key">Task type</div><div>${escapeHtml(task.task_type || "—")}</div></div>
+            <div class="kv"><div class="key">State</div><div>${stateBadge(task.state)}</div></div>
+            <div class="kv"><div class="key">Created</div><div>${escapeHtml(task.created_at || "—")}</div></div>
+            <div class="kv"><div class="key">Updated</div><div>${escapeHtml(task.updated_at || "—")}</div></div>
+          </div>
+
+          <div class="artifact-box">
+            <h4>Task input</h4>
+            <pre style="margin:0; white-space:pre-wrap; word-break:break-word; color:var(--text);">${escapeHtml(prettyJson(task.input || {}))}</pre>
+          </div>
+
+          ${artifactHtml}
+        </div>
+      `;
+
+      const retryTaskButton = document.getElementById("retry-task-button");
+      if (retryTaskButton && task.state === "failed") {
+        retryTaskButton.addEventListener("click", () => retryTask(task.task_id));
+      }
+    }
+
+    function renderEvents(events) {
+      const task = tasksCache.find((item) => item.task_id === selectedTaskId);
+      let filteredEvents = [...(Array.isArray(events) ? events : []), ...collectLogEvents(task)];
+      filteredEvents.sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+
+      const search = (timelineSearchEl?.value || "").trim().toLowerCase();
+
+      if (search) {
+        filteredEvents = filteredEvents.filter((item) => {
+          const haystack = `${item.event_type || item.event || ""} ${item.summary || ""} ${formatEventSummary(item)} ${item.created_at || ""}`.toLowerCase();
+          return haystack.includes(search);
+        });
+      }
+
+      if (!filteredEvents.length) {
+        taskEventsEl.innerHTML = `<div class="empty">No task events yet.</div>`;
+        return;
+      }
+
+      taskEventsEl.innerHTML = filteredEvents.map(item => `
+        <div class="timeline-item">
+          <div class="timeline-event-type">${escapeHtml(item.event_type || item.event || "event")}</div>
+          <div class="timeline-event-summary">${escapeHtml(item.summary || formatEventSummary(item))}</div>
+          ${item.created_at ? `<div class="timeline-event-time">${escapeHtml(item.created_at)}</div>` : ""}
+        </div>
+      `).join("");
+    }
+
+    function setButtonLoading(button, isLoading, loadingLabel) {
+      if (!button) return;
+      if (!button.dataset.defaultLabel) {
+        button.dataset.defaultLabel = button.textContent.trim();
+      }
+      button.disabled = Boolean(isLoading);
+      button.textContent = isLoading ? loadingLabel : button.dataset.defaultLabel;
+    }
+
+    async function fetchJson(url, options = {}) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        if (error instanceof TypeError) {
+          throw new Error(`Network error while calling ${url}`);
+        }
+        throw error;
+      }
+    }
+
+    async function loadTasks(preserveSelection = true) {
+
+    function renderKnowledgeDocuments(documents) {
+      if (!documents.length) {
+        knowledgeListEl.innerHTML = '<div class="empty">No knowledge documents loaded yet.</div>';
+        return;
+      }
+
+      knowledgeListEl.innerHTML = documents.map((doc) => `
+        <div class="knowledge-item">
+          <strong>${escapeHtml(doc.title || "Untitled")}</strong>
+          <div class="knowledge-meta">
+            <span>${escapeHtml(doc.doc_type || "general")}</span>
+            <span>${escapeHtml(doc.service_name || "no-service")}</span>
+            <span>${escapeHtml(doc.document_id || "")}</span>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function loadKnowledgeDocuments() {
+      knowledgeStatusEl.textContent = "Loading knowledge documents…";
+      try {
+        const data = await fetchJson(`${RAG_API_BASE}/api/knowledge/documents?project_id=default-project`);
+        const documents = Array.isArray(data.documents) ? data.documents : [];
+        knowledgeStatusEl.textContent = `Loaded ${documents.length} knowledge document(s)`;
+        renderKnowledgeDocuments(documents);
+      } catch (error) {
+        knowledgeStatusEl.textContent = `Knowledge loading failed: ${error.message}`;
+        knowledgeListEl.innerHTML = '<div class="empty">Failed to load knowledge documents.</div>';
+      }
+    }
+
+    async function uploadKnowledgeDocument() {
+      const title = knowledgeTitleEl.value.trim();
+      const serviceName = knowledgeServiceNameEl.value.trim();
+      const docType = knowledgeDocTypeEl.value;
+      const content = knowledgeContentEl.value.trim();
+      const tags = knowledgeTagsEl.value.split(",").map((item) => item.trim()).filter(Boolean);
+
+      if (!title) {
+        alert("Knowledge title is required");
+        return;
+      }
+
+      if (!content) {
+        alert("Knowledge content is required");
+        return;
+      }
+
+      try {
+        setButtonLoading(uploadKnowledgeEl, true, "Uploading…");
+        const result = await fetchJson(`${RAG_API_BASE}/api/knowledge/documents`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            project_id: "default-project",
+            service_name: serviceName || null,
+            title,
+            doc_type: docType,
+            source: "qa-console",
+            tags,
+            content,
+          }),
+        });
+
+        knowledgeTitleEl.value = "";
+        knowledgeServiceNameEl.value = "";
+        knowledgeTagsEl.value = "";
+        knowledgeContentEl.value = "";
+        knowledgeStatusEl.textContent = `Uploaded ${result.document_id} with ${result.chunk_count} chunk(s)`;
+        await loadKnowledgeDocuments();
+      } catch (error) {
+        alert(`Failed to upload knowledge document: ${error.message}`);
+      } finally {
+        setButtonLoading(uploadKnowledgeEl, false, "Uploading…");
+      }
+    }
+
+      const data = await fetchJson(`${API_BASE}/api/tasks?limit=20`);
+      tasksCache = Array.isArray(data.tasks) ? data.tasks : [];
+      renderTaskList(tasksCache);
+
+      if (preserveSelection && selectedTaskId) {
+        const selected = tasksCache.find(task => task.task_id === selectedTaskId);
+        if (selected) {
+          renderTaskDetail(selected);
+        }
+      }
+    }
+
+    async function loadTaskDetail(taskId) {
+      const task = await fetchJson(`${API_BASE}/api/tasks/${taskId}`);
+      const index = tasksCache.findIndex(item => item.task_id === taskId);
+      if (index >= 0) {
+        tasksCache[index] = task;
+      } else {
+        tasksCache.unshift(task);
+      }
+      renderTaskList(tasksCache);
+      renderTaskDetail(task);
+    }
+
+    async function loadTaskEvents(taskId) {
+      try {
+        const data = await fetchJson(`${API_BASE}/api/tasks/${taskId}/result`);
+        const syntheticEvents = [
+          {
+            event_type: "task.result.snapshot",
+            payload: data,
+            created_at: new Date().toISOString(),
+          },
+        ];
+        renderEvents(syntheticEvents);
+      } catch (error) {
+        taskEventsEl.innerHTML = `<div class="empty">Failed to load events snapshot: ${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function subscribeToTaskEvents(taskId) {
+      if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
+      }
+
+      taskEventsEl.innerHTML = `<div class="empty">Waiting for task events…</div>`;
+
+      currentEventSource = new EventSource(`${API_BASE}/api/tasks/${taskId}/events`);
+      startAutoRefresh(taskId);
+
+      const received = [];
+
+      currentEventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          received.push({
+            event_type: event.type || "message",
+            payload,
+            created_at: new Date().toISOString(),
+          });
+          renderEvents(received);
+          loadTaskDetail(taskId).catch(() => {});
+        } catch {
+          received.push({
+            event_type: event.type || "message",
+            payload: event.data,
+            created_at: new Date().toISOString(),
+          });
+          renderEvents(received);
+        }
+      };
+
+      ["qa.agent.task.created", "qa.agent.task.status", "qa.agent.task.completed", "qa.agent.task.failed"].forEach(type => {
+        currentEventSource.addEventListener(type, (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            received.push({
+              event_type: type,
+              payload,
+              created_at: new Date().toISOString(),
+            });
+          } catch {
+            received.push({
+              event_type: type,
+              payload: event.data,
+              created_at: new Date().toISOString(),
+            });
+          }
+          renderEvents(received);
+          loadTaskDetail(taskId).catch(() => {});
+        });
+      });
+
+      currentEventSource.onerror = () => {
+        if (!received.length) {
+          taskEventsEl.innerHTML = `<div class="empty">Event stream disconnected or unavailable.</div>`;
+        }
+      };
+    }
+
+    async function selectTask(taskId) {
+      selectedTaskId = taskId;
+      await loadTaskDetail(taskId);
+      subscribeToTaskEvents(taskId);
+    }
+
+    function setModelOptions(models, preferredValue) {
+  modelNameEl.innerHTML = "";
+
+  if (!models || !models.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No models available";
+    modelNameEl.appendChild(option);
+    return;
+  }
+
+  models.forEach((model) => {
+    const option = document.createElement("option");
+    option.value = model.id;
+    option.textContent = model.name;
+    modelNameEl.appendChild(option);
+  });
+
+  const desired = preferredValue && models.some((m) => m.id === preferredValue)
+    ? preferredValue
+    : models[0].id;
+
+  modelNameEl.value = desired;
+}
+
+async function loadModels() {
+  const provider = modelProviderEl.value;
+  modelStatusEl.textContent = "Loading models…";
+
+  try {
+    const response = await fetch(`${gatewayBaseUrl}/models?provider=${encodeURIComponent(provider)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to load models: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const models = Array.isArray(data.models) ? data.models : [];
+
+    if (provider === "ollama") {
+      setModelOptions(models, data.default_model || "llama3");
+      modelStatusEl.textContent = models.length
+        ? `Loaded ${models.length} Ollama model(s)`
+        : "No Ollama models found";
+      return;
+    }
+
+    if (provider === "stub") {
+      setModelOptions(
+        models.length ? models : [{ id: "stub-default", name: "stub-default" }],
+        "stub-default"
+      );
+      modelStatusEl.textContent = "Stub model ready";
+      return;
+    }
+
+    setModelOptions(models, "");
+    modelStatusEl.textContent = "Provider has no predefined local model list";
+  } catch (error) {
+    if (provider === "ollama") {
+      setModelOptions([{ id: "llama3", name: "llama3" }], "llama3");
+    } else if (provider === "stub") {
+      setModelOptions([{ id: "stub-default", name: "stub-default" }], "stub-default");
+    } else {
+      setModelOptions([], "");
+    }
+
+    modelStatusEl.textContent = `Model loading failed: ${error.message}`;
+  }
+}
+
+modelProviderEl.addEventListener("change", loadModels);
+reloadModelsEl.addEventListener("click", async () => {
+  try {
+    setButtonLoading(reloadModelsEl, true, "Reloading…");
+    await loadModels();
+  } finally {
+    setButtonLoading(reloadModelsEl, false, "Reloading…");
+  }
+});
+
+    taskFormEl.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const submitButton = taskFormEl.querySelector('button[type="submit"]');
+      const taskType = document.getElementById("task-type").value;
+      const modelProvider = document.getElementById("model-provider").value;
+      const modelName = document.getElementById("model-name").value.trim() || "stub-default";
+      const rawInput = document.getElementById("task-input").value.trim();
+      const rawOpenApi = document.getElementById("openapi-input").value.trim();
+      const serviceName = document.getElementById("service-name-input").value.trim();
+      const architectureContext = document.getElementById("architecture-context-input").value.trim();
+      const relatedDocsRaw = document.getElementById("related-docs-input").value.trim();
+      const useRag = document.getElementById("use-rag-toggle").checked;
+
+      let parsedInput;
+      try {
+        parsedInput = JSON.parse(rawInput);
+      } catch (error) {
+        parsedInput = { text: rawInput };
+      }
+
+      if (!parsedInput || typeof parsedInput !== "object" || Array.isArray(parsedInput)) {
+        parsedInput = { text: rawInput };
+      }
+
+      if (rawOpenApi) {
+        parsedInput.openapi_document = rawOpenApi;
+      }
+
+      if (serviceName) {
+        parsedInput.service_name = serviceName;
+      }
+
+      if (architectureContext) {
+        parsedInput.architecture_context = architectureContext;
+      }
+
+      if (relatedDocsRaw) {
+        parsedInput.related_docs = relatedDocsRaw
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      parsedInput.rag_options = {
+        enabled: useRag,
+        sources: [
+          rawOpenApi ? "openapi_document" : null,
+          architectureContext ? "architecture_context" : null,
+          relatedDocsRaw ? "related_docs" : null,
+        ].filter(Boolean),
+      };
+
+      try {
+        setButtonLoading(submitButton, true, "Creating…");
+        const created = await fetchJson(`${API_BASE}/api/tasks`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            project_id: "default-project",
+            task_type: taskType,
+            mode: "balanced",
+            approval_mode: "auto",
+            input: parsedInput,
+            model_provider: modelProvider,
+            model_name: modelName,
+          }),
+        });
+
+        document.getElementById("openapi-input").value = "";
+        document.getElementById("service-name-input").value = "";
+        document.getElementById("architecture-context-input").value = "";
+        document.getElementById("related-docs-input").value = "";
+        document.getElementById("use-rag-toggle").checked = true;
+        await loadTasks(false);
+        await selectTask(created.task_id);
+      } catch (error) {
+        alert(`Failed to create task: ${error.message}`);
+      } finally {
+        setButtonLoading(submitButton, false, "Creating…");
+      }
+    });
+
+    refreshButtonEl.addEventListener("click", async () => {
+      try {
+        setButtonLoading(refreshButtonEl, true, "Refreshing…");
+        await loadTasks(true);
+      } catch (error) {
+        alert(`Failed to refresh tasks: ${error.message}`);
+      } finally {
+        setButtonLoading(refreshButtonEl, false, "Refreshing…");
+      }
+    });
+
+    reloadDetailButtonEl.addEventListener("click", async () => {
+      if (!selectedTaskId) return;
+      try {
+        setButtonLoading(reloadDetailButtonEl, true, "Reloading…");
+        await loadTaskDetail(selectedTaskId);
+      } catch (error) {
+        alert(`Failed to reload selected task: ${error.message}`);
+      } finally {
+        setButtonLoading(reloadDetailButtonEl, false, "Reloading…");
+      }
+    });
+
+    taskSearchEl.addEventListener("input", () => {
+      currentPage = 1;
+      saveUiState();
+      renderTaskList(tasksCache);
+    });
+
+    taskStateFilterEl.addEventListener("change", () => {
+      currentPage = 1;
+      saveUiState();
+      renderTaskList(tasksCache);
+    });
+
+    taskTypeFilterEl.addEventListener("change", () => {
+      currentPage = 1;
+      saveUiState();
+      renderTaskList(tasksCache);
+    });
+
+    taskSortEl.addEventListener("change", () => {
+      currentPage = 1;
+      saveUiState();
+      renderTaskList(tasksCache);
+    });
+
+    autoRefreshToggleEl.addEventListener("change", () => {
+      autoRefreshEnabled = autoRefreshToggleEl.checked;
+      if (autoRefreshEnabled) {
+        startAutoRefresh();
+        showToast("Auto-refresh enabled");
+      } else {
+        stopAutoRefresh();
+        autoRefreshDotEl?.classList.remove("active");
+        showToast("Auto-refresh disabled", "error");
+      }
+    });
+
+    autoRefreshIntervalEl.addEventListener("change", () => {
+      if (autoRefreshEnabled) startAutoRefresh();
+    });
+
+    commandPaletteSearchEl.addEventListener("input", () => {
+      commandPaletteIndex = 0;
+      renderCommandPalette();
+    });
+
+    commandPaletteBackdropEl.addEventListener("click", (event) => {
+      if (event.target === commandPaletteBackdropEl) {
+        closeCommandPalette();
+      }
+    });
+
+    timelineSearchEl.addEventListener("input", async () => {
+      saveUiState();
+      if (selectedTaskId) await loadTaskDetail(selectedTaskId);
+    });
+
+    prevPageEl.addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage -= 1;
+        renderTaskList(tasksCache);
+      }
+    });
+
+    nextPageEl.addEventListener("click", () => {
+      currentPage += 1;
+      renderTaskList(tasksCache);
+    });
+
+    pageSizeEl.addEventListener("change", () => {
+      pageSize = Number(pageSizeEl.value || 20);
+      currentPage = 1;
+      saveUiState();
+      renderTaskList(tasksCache);
+    });
+
+    timelineToggleEl.addEventListener("click", () => {
+      isCompactTimeline = !isCompactTimeline;
+      taskEventsEl.classList.toggle("compact", isCompactTimeline);
+      timelineToggleEl.textContent = isCompactTimeline ? "Expanded timeline" : "Compact timeline";
+      saveUiState();
+    });
+
+    uploadKnowledgeEl.addEventListener("click", async () => {
+      await uploadKnowledgeDocument();
+    });
+
+    refreshKnowledgeEl.addEventListener("click", async () => {
+      await loadKnowledgeDocuments();
+    });
+
+    copyResultButtonEl.addEventListener("click", async () => {
+      if (!selectedTaskId) {
+        showToast("Select a task first", "error");
+        return;
+      }
+
+      const task = tasksCache.find((item) => item.task_id === selectedTaskId);
+      if (!task) {
+        showToast("Selected task is not available", "error");
+        return;
+      }
+
+      try {
+        setButtonLoading(copyResultButtonEl, true, "Copying…");
+        await navigator.clipboard.writeText(prettyJson(task.result || task));
+        showToast("Result copied to clipboard");
+      } catch (error) {
+        showToast(`Failed to copy result: ${error.message}`, "error");
+      } finally {
+        setButtonLoading(copyResultButtonEl, false, "Copying…");
+      }
+    });
+
+    selectVisibleTasksEl.addEventListener("change", () => {
+      for (const taskId of getVisibleTaskIds()) {
+        if (selectVisibleTasksEl.checked) selectedTaskIds.add(taskId);
+        else selectedTaskIds.delete(taskId);
+      }
+      renderTaskList(tasksCache);
+    });
+
+    bulkCopyIdsEl.addEventListener("click", async () => {
+      const ids = Array.from(selectedTaskIds);
+      if (!ids.length) {
+        showToast("No tasks selected", "error");
+        return;
+      }
+      await navigator.clipboard.writeText(ids.join("\n")); showToast(`Copied ${ids.length} task ID(s)`);
+    });
+
+    bulkExportJsonEl.addEventListener("click", () => {
+      const selected = tasksCache.filter((task) => selectedTaskIds.has(task.task_id));
+      if (!selected.length) {
+        showToast("No tasks selected", "error");
+        return;
+      }
+      downloadJson("selected-tasks.json", selected); showToast(`Exported ${selected.length} task(s)`);
+    });
+
+    bulkExportCsvEl?.addEventListener("click", () => {
+      const selected = tasksCache.filter((task) => selectedTaskIds.has(task.task_id));
+      if (!selected.length) { showToast("No tasks selected", "error"); return; }
+      downloadCsv("selected-tasks.csv", selected);
+      showToast(`Exported ${selected.length} task(s) as CSV`);
+    });
+
+    window.addEventListener("keydown", async (event) => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      const isTyping = tag === "input" || tag === "textarea" || document.activeElement?.isContentEditable;
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (isCommandPaletteOpen()) closeCommandPalette();
+        else openCommandPalette();
+        return;
+      }
+
+      if (isCommandPaletteOpen()) {
+        const items = renderCommandPalette();
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeCommandPalette();
+          return;
+        }
+
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          commandPaletteIndex = Math.min(items.length - 1, commandPaletteIndex + 1);
+          renderCommandPalette();
+          return;
+        }
+
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          commandPaletteIndex = Math.max(0, commandPaletteIndex - 1);
+          renderCommandPalette();
+          return;
+        }
+
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const item = items[commandPaletteIndex];
+          if (item) {
+            closeCommandPalette();
+            await item.run();
+          }
+          return;
+        }
+      }
+
+      if (event.key === "/" && !isTyping) {
+        event.preventDefault();
+        taskSearchEl.focus();
+        taskSearchEl.select?.();
+        return;
+      }
+
+      if (isTyping) return;
+
+      const visibleIds = getVisibleTaskIds();
+      const currentIndex = visibleIds.indexOf(selectedTaskId);
+
+      if (event.key === "j" && visibleIds.length) {
+        event.preventDefault();
+        const nextId = visibleIds[Math.min(visibleIds.length - 1, currentIndex + 1 >= 0 ? currentIndex + 1 : 0)];
+        if (nextId) await selectTask(nextId);
+      }
+
+      if (event.key === "k" && visibleIds.length) {
+        event.preventDefault();
+        const nextId = visibleIds[Math.max(0, currentIndex > 0 ? currentIndex - 1 : 0)];
+        if (nextId) await selectTask(nextId);
+      }
+
+      if (event.key === "r") {
+        event.preventDefault();
+        await loadTasks(true);
+      }
+
+      if (event.key === "c" && selectedTaskId) {
+        event.preventDefault();
+        copyResultButtonEl.click();
+      }
+    });
+
+    // ── Circuit breaker status polling ──────────────────────────────────────
+    function applyCircuitBadge(el, state, label) {
+      if (!el) return;
+      const cls = (state || "unknown").toLowerCase();
+      el.className = `circuit-badge ${cls}`;
+      el.innerHTML = `<span class="dot"></span>${label}: ${(state || "—").toUpperCase()}`;
+    }
+
+    async function pollCircuitStatus() {
+      try {
+        const data = await fetchJson(`${gatewayBaseUrl}/circuit-status`);
+        applyCircuitBadge(ollamaBadgeEl,  data?.ollama?.state,  "Ollama");
+        applyCircuitBadge(openaiBadgeEl,  data?.openai?.state,  "OpenAI");
+      } catch {
+        applyCircuitBadge(ollamaBadgeEl, "unknown", "Ollama");
+        applyCircuitBadge(openaiBadgeEl, "unknown", "OpenAI");
+      }
+    }
+
+    // ── CSV export ───────────────────────────────────────────────────────────
+    function downloadCsv(filename, tasks) {
+      const COLS = ["task_id", "task_type", "state", "created_at", "updated_at"];
+      const escape = (v) => {
+        const s = v == null ? "" : String(v);
+        return s.includes(",") || s.includes('"') || s.includes("\n")
+          ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const rows = [
+        COLS.join(","),
+        ...tasks.map(t => COLS.map(c => escape(t[c])).join(",")),
+      ];
+      const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // ── Retry failed task ────────────────────────────────────────────────────
+    async function retryTask(taskId) {
+      const task = tasksCache.find(t => t.task_id === taskId);
+      if (!task) { showToast("Task not found", "error"); return; }
+      const btn = document.getElementById("retry-task-button");
+      if (btn) { btn.disabled = true; btn.textContent = "Retrying…"; }
+      try {
+        const created = await fetchJson(`${API_BASE}/api/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            task_type:     task.task_type,
+            input:         task.input || {},
+            model_name:    task.model_name  || null,
+            provider:      task.provider    || "ollama",
+            approval_mode: task.approval_mode || "auto",
+            retried_from:  taskId,
+          }),
+        });
+        showToast(`Retry created: ${created.task_id}`);
+        await loadTasks(false);
+        await selectTask(created.task_id);
+      } catch (err) {
+        showToast(`Retry failed: ${err.message}`, "error");
+        if (btn) { btn.disabled = false; btn.innerHTML = "\u21bb Retry failed task"; }
+      }
+    }
+
+    async function bootstrap() {
+      try {
+        pinnedTaskIds = loadPinnedTasks();
+        applySidebarWidth(loadSidebarWidth());
+        setupSplitter();
+        applyUiState();
+        await loadModels();
+        await loadTasks(true);
+        if (tasksCache.length) {
+          await selectTask(tasksCache[0].task_id);
+        }
+        // start circuit status polling every 15 s
+        pollCircuitStatus();
+        setInterval(pollCircuitStatus, 15_000);
+      } catch (error) {
+        taskListEl.innerHTML = `<div class="empty">Failed to load tasks: ${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    window.addEventListener("beforeunload", () => {
+      stopAutoRefresh();
+      if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
+      }
+    });
+
+    bootstrap();
+
+    window.addEventListener("beforeunload", stopAutoRefresh);
+  </script>
 </body>
 </html>
