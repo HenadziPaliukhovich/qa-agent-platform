@@ -1,0 +1,64 @@
+name: repo-guardrails
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  repo-guardrails:
+    name: repo-guardrails
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required governance files exist
+        shell: bash
+        run: |
+          test -f .commitlintrc.yml
+          test -f CONTRIBUTING.md
+          test -f .github/pull_request_template.md
+          test -f docs/adr/README.md
+          test -f docs/adr/0000-template.md
+          test -f .github/ISSUE_TEMPLATE/feature_request.md
+          test -f .github/ISSUE_TEMPLATE/bug_report.md
+          test -f .github/ISSUE_TEMPLATE/tech_task.md
+          test -f .github/ISSUE_TEMPLATE/architecture_decision.md
+
+      - name: Validate PR template sections
+        shell: bash
+        run: |
+          grep -q '^## Summary' .github/pull_request_template.md
+          grep -q '^## Linked work' .github/pull_request_template.md
+          grep -q '^## Verification' .github/pull_request_template.md
+          grep -q '^## Impact and risk' .github/pull_request_template.md
+          grep -q '^## Rollback plan' .github/pull_request_template.md
+          grep -q '^## Checklist' .github/pull_request_template.md
+
+      - name: Validate contributing guide sections
+        shell: bash
+        run: |
+          grep -q '^## Branching model' CONTRIBUTING.md
+          grep -q '^## Commit messages' CONTRIBUTING.md
+          grep -q '^## Pull request rules' CONTRIBUTING.md
+          grep -q '^## GitHub remote policy' CONTRIBUTING.md
+          grep -q '^## ADR policy' CONTRIBUTING.md
+          grep -q '^## Release and versioning policy' CONTRIBUTING.md
+
+      - name: Validate commitlint scopes are enforced
+        shell: bash
+        run: |
+          grep -q '^  scope-empty:' .commitlintrc.yml
+          grep -A 2 '^  scope-empty:' .commitlintrc.yml | grep -q 'never'
+          grep -q '^  scope-enum:' .commitlintrc.yml
+
+      - name: Validate ADR template structure
+        shell: bash
+        run: |
+          grep -q '^# ADR 0000:' docs/adr/0000-template.md
+          grep -q '^## Status' docs/adr/0000-template.md
+          grep -q '^## Context' docs/adr/0000-template.md
+          grep -q '^## Decision' docs/adr/0000-template.md
+          grep -q '^## Consequences' docs/adr/0000-template.md
+          grep -q '^## Alternatives considered' docs/adr/0000-template.md

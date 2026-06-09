@@ -1,0 +1,23 @@
+name: commitlint
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  commitlint:
+    name: commitlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        uses: wagoid/commitlint-github-action@v5
+        with:
+          configFile: .commitlintrc.yml
