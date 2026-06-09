@@ -58,11 +58,20 @@ jobs:
           echo "==> qa_task_api logs"
           docker compose logs --tail 200 qa_task_api
 
-      - name: Seed default domain
+      - name: Seed default domain in Postgres
         run: |
-          curl --fail -X POST "$BASE_URL/api/domains" \
-            -H "Content-Type: application/json" \
-            -d '{"name":"Payments","slug":"payments","description":"Smoke Payments domain","tags":["payments","smoke"]}'
+          docker compose exec -T postgres psql -U qa -d qa_agent <<'SQL'
+          insert into domains (domain_id, name, slug, description, status, tags)
+          values (
+            '11111111-1111-1111-1111-111111111111',
+            'Payments',
+            'payments',
+            'Smoke Payments domain',
+            'active',
+            '["payments","smoke"]'::jsonb
+          )
+          on conflict (slug) do nothing;
+          SQL
 
       - name: Run smoke suite
         run: |
