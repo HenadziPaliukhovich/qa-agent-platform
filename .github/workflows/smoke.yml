@@ -49,6 +49,12 @@ jobs:
           docker compose logs --tail 200 qa_task_api qa_orchestrator qa_result_service qa_rag_service
           exit 1
 
+      - name: Seed default domain
+        run: |
+          curl --fail -X POST "$BASE_URL/api/domains" \
+            -H "Content-Type: application/json" \
+            -d '{"name": "Payments", "slug": "payments", "description": "Smoke Payments domain", "status": "active", "tags": ["payments", "smoke"]}'
+
       - name: Run smoke suite
         run: |
           chmod +x ./scripts/smoke-task.sh
