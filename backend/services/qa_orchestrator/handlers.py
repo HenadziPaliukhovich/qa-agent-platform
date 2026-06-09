@@ -18,45 +18,60 @@ def _build_handler_result(event: dict, llm_response: dict | None) -> dict:
     task_type = event.get("task_type", "") if isinstance(event, dict) else ""
     input_data = get_effective_input_data(event) if isinstance(event, dict) else {}
     llm_context = llm_response.get("context") if isinstance(llm_response, dict) and isinstance(llm_response.get("context"), dict) else {}
+    title = input_data.get("title") if isinstance(input_data, dict) else ""
+    requirements = input_data.get("requirements") if isinstance(input_data, dict) else []
+    executed_tests = input_data.get("executed_tests") if isinstance(input_data, dict) else []
 
-    should_apply_test_case_fallback = (
-        task_type == "test_case_generation"
-        and isinstance(artifact, dict)
-        and not artifact.get("test_cases")
-    )
+    fallback_reason = None
+    fallback_output = None
 
-    if should_apply_test_case_fallback:
+    if task_type == "test_case_generation" and isinstance(artifact, dict) and not artifact.get("test_cases"):
+        fallback_reason = "empty_test_cases"
         fallback_output = {
-            "summary": llm_output.get("summary") or f"Fallback test cases for {input_data.get('title') or 'Untitled task'}",
+            "summary": llm_output.get("summary") or f"Fallback test cases for {title or 'Untitled task'}",
+            "requirements_under_test": requirements if isinstance(requirements, list) else [],
+            "coverage": {
+                "areas": ["happy path", "validation", "error handling"],
+                "priority": "high",
+            },
             "test_cases": [
                 {
                     "id": "TC-001",
-                    "title": f"{input_data.get('title') or 'Untitled task'}: happy path",
+                    "title": f"{title or 'Untitled task'}: happy path",
                     "steps": [
                         "Open the flow",
                         "Provide valid input",
                         "Submit the action",
                     ],
                     "expected_result": "Flow completes successfully",
+                    "priority": "high",
+                    "type": "functional",
                 },
                 {
                     "id": "TC-002",
-                    "title": f"{input_data.get('title') or 'Untitled task'}: validation handling",
+                    "title": f"{title or 'Untitled task'}: validation handling",
                     "steps": [
                         "Open the flow",
                         "Submit invalid or incomplete input",
                     ],
                     "expected_result": "Validation feedback is shown",
+                    "priority": "high",
+                    "type": "negative",
                 },
                 {
                     "id": "TC-003",
-                    "title": f"{input_data.get('title') or 'Untitled task'}: failure path",
+                    "title": f"{title or 'Untitled task'}: failure path",
                     "steps": [
                         "Open the flow",
                         "Trigger or simulate provider or service failure",
                     ],
                     "expected_result": "A clear error state is shown and data remains consistent",
+                    "priority": "medium",
+                    "type": "resilience",
                 },
+            ],
+            "assumptions": [
+                "The target flow is reachable in the selected environment.",
             ],
             "risks": llm_output.get("risks") or [
                 "Generated artifact was empty, deterministic fallback test cases were applied.",
@@ -64,13 +79,75 @@ def _build_handler_result(event: dict, llm_response: dict | None) -> dict:
             "debug_context": llm_context.get("debug_context", {}),
             "fallback": True,
         }
+
+    elif task_type == "requirements_analysis" and isinstance(artifact, dict) and not artifact.get("requirements_under_test"):
+        fallback_reason = "empty_requirements_under_test"
+        fallback_requirements = requirements if isinstance(requirements, list) and requirements else [
+            title or "Requirement details were not provided.",
+        ]
+        fallback_output = {
+            "summary": llm_output.get("summary") or "Deterministic fallback requirements analysis was applied.",
+            "requirements_under_test": fallback_requirements,
+            "clarity_findings": llm_output.get("clarity_findings") or [
+                "Requirements are high-level and may need more concrete acceptance criteria.",
+            ],
+            "coverage_gaps": llm_output.get("coverage_gaps") or [
+                "Negative scenarios and service failure handling are not explicitly described.",
+            ],
+            "assumptions": llm_output.get("assumptions") or [
+                "The described flow is available to the target user role.",
+            ],
+            "questions_for_refinement": llm_output.get("questions_for_refinement") or [
+                "What are the expected validation rules and error messages?",
+            ],
+            "suggested_test_areas": llm_output.get("suggested_test_areas") or [
+                "Happy path",
+                "Validation handling",
+                "Error recovery",
+            ],
+            "risks": llm_output.get("risks") or [
+                "Generated artifact was missing requirements_under_test, deterministic fallback analysis was applied.",
+            ],
+            "debug_context": llm_context.get("debug_context", {}),
+            "fallback": True,
+        }
+
+    elif task_type == "test_report" and isinstance(artifact, dict) and not artifact.get("summary"):
+        fallback_reason = "empty_summary"
+        tested_scope = executed_tests if isinstance(executed_tests, list) else []
+        fallback_output = {
+            "summary": "Deterministic fallback smoke report was applied.",
+            "tested_scope": tested_scope,
+            "not_tested_scope": llm_output.get("not_tested_scope") or [],
+            "pass_fail_blocked": llm_output.get("pass_fail_blocked") or {
+                "passed": len(tested_scope),
+                "failed": 0,
+                "blocked": 0,
+            },
+            "key_findings": llm_output.get("key_findings") or [
+                "Smoke scenarios executed through the QA agent pipeline.",
+            ],
+            "key_defects": llm_output.get("key_defects") or [],
+            "blockers": llm_output.get("blockers") or [],
+            "open_issues": llm_output.get("open_issues") or [],
+            "risks": llm_output.get("risks") or [
+                "Report content was sparse, deterministic fallback summary was applied.",
+            ],
+            "quality_assessment": llm_output.get("quality_assessment") or "Basic smoke execution completed without reported blockers.",
+            "recommendation": llm_output.get("recommendation") or "Proceed with deeper regression and domain-specific validation.",
+            "signoff_status": llm_output.get("signoff_status") or "pending",
+            "debug_context": llm_context.get("debug_context", {}),
+            "fallback": True,
+        }
+
+    if fallback_output is not None:
         llm_output = fallback_output
         artifact = build_structured_result(event, llm_output)
         if isinstance(artifact, dict):
             artifact.setdefault("processing_profile", {})
             if isinstance(artifact["processing_profile"], dict):
                 artifact["processing_profile"]["fallback_applied"] = True
-                artifact["processing_profile"]["fallback_reason"] = "empty_test_cases"
+                artifact["processing_profile"]["fallback_reason"] = fallback_reason
 
     return {
         "llm_response": llm_response,

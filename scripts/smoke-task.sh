@@ -76,7 +76,7 @@ pick_domain() {
   fi
 
   local domains_json
-  domains_json="$(curl -sS "$BASE_URL/api/domains?status=active")"
+  domains_json="$(curl --max-time 10 -sS "$BASE_URL/api/domains?status=active")"
 
   {
     printf '==> Active domains\n'
@@ -99,6 +99,14 @@ pick_model() {
     return
   fi
   pick_random_item "${MODEL_CANDIDATES[@]}"
+}
+
+check_api_health() {
+  if ! curl --max-time 10 -fsS "$BASE_URL/health" >/dev/null 2>&1; then
+    log "Task API is unavailable at $BASE_URL/health"
+    return 1
+  fi
+  return 0
 }
 
 build_input_json() {
@@ -256,14 +264,14 @@ run_task_type() {
   result_response="$(curl -sS "$BASE_URL/api/tasks/$task_id/result")"
   printf '%s\n' "$result_response" | pretty_print | tee -a "$LOG_FILE"
 
-  final_state="$(printf '%s' "$task_response" | json_get state)"
-  artifact_type="$(printf '%s' "$result_response" | json_get result.artifact_type)"
+  final_state="$(printf '%s' "$task_response" | json_get state || true)"
+  artifact_type="$(printf '%s' "$result_response" | json_get result.artifact_type || true)"
   test_cases_count="$(printf '%s' "$result_response" | "$PYTHON_BIN" -c 'import json,sys
 payload=json.load(sys.stdin)
 result=payload.get("result") or {}
 test_cases=result.get("test_cases")
 print(len(test_cases) if isinstance(test_cases, list) else 0)
-')"
+' || true)"
 
   log "==> Summary"
   log "task_id=$task_id"
@@ -281,13 +289,37 @@ print(len(test_cases) if isinstance(test_cases, list) else 0)
     return 1
   fi
 
+  local requirements_count summary_text
+  requirements_count="$(printf '%s' "$result_response" | "$PYTHON_BIN" -c 'import json,sys
+payload=json.load(sys.stdin)
+result=payload.get("result") or {}
+items=result.get("requirements_under_test")
+print(len(items) if isinstance(items, list) else 0)
+' || true)"
+  summary_text="$(printf '%s' "$result_response" | json_get result.summary || true)"
+  log "requirements_under_test_count=$requirements_count"
+
+  if [ "$task_type" = "requirements_analysis" ] && [ "$requirements_count" = "0" ]; then
+    log "Smoke check failed for $task_type: empty requirements_under_test"
+    return 1
+  fi
+
+  if [ "$task_type" = "test_report" ] && [ -z "$summary_text" ]; then
+    log "Smoke check failed for $task_type: empty summary"
+    return 1
+  fi
+
   log "Smoke check passed for $task_type"
   return 0
 }
 
 : > "$LOG_FILE"
 
-DOMAIN_ID="$(pick_domain)"
+if ! check_api_health; then
+  exit 1
+fi
+
+DOMAIN_ID="$(pick_domain | tail -n 1 | tr -d '\r')"
 if [ -z "$DOMAIN_ID" ]; then
   log "No active domains found, cannot run smoke test"
   exit 1
