@@ -11,21 +11,6 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: qa
-          POSTGRES_PASSWORD: qa
-          POSTGRES_DB: qa_agent
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U qa"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
     env:
       BASE_URL: http://127.0.0.1:8001
       PYTHON_BIN: python3
