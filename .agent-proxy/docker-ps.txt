@@ -1,0 +1,4 @@
+# Generated: 2026-06-09T11:41:13+03:00
+# Command: /Applications/Docker.app/Contents/Resources/bin/docker compose ps
+
+permission denied while trying to connect to the docker API at unix:///Users/paliukhovich/.docker/run/docker.sock

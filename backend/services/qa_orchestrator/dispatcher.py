@@ -1,6 +1,7 @@
 from backend.services.qa_orchestrator.handlers import (
     handle_generic_task,
     handle_requirements_analysis,
+    handle_roadmap_step_executor,
     handle_test_case_generation,
 )
 
@@ -11,6 +12,7 @@ TASK_HANDLERS = {
     "test_plan": handle_generic_task,
     "test_report": handle_generic_task,
     "release_readiness": handle_generic_task,
+    "roadmap_step_executor": handle_roadmap_step_executor,
 }
 
 

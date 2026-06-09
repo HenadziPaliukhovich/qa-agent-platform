@@ -1,0 +1,123 @@
+# Generated: 2026-06-09T12:13:03+03:00
+# Command: /Applications/Docker.app/Contents/Resources/bin/docker compose logs --tail 120 qa_task_api
+
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 187, in __call__
+qa_task_api-1  |     raise exc
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
+qa_task_api-1  |     await self.app(scope, receive, _send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 85, in __call__
+qa_task_api-1  |     await self.app(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+qa_task_api-1  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+qa_task_api-1  |     raise exc
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+qa_task_api-1  |     await app(scope, receive, sender)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 715, in __call__
+qa_task_api-1  |     await self.middleware_stack(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 735, in app
+qa_task_api-1  |     await route.handle(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
+qa_task_api-1  |     await self.app(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
+qa_task_api-1  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+qa_task_api-1  |     raise exc
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+qa_task_api-1  |     await app(scope, receive, sender)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
+qa_task_api-1  |     response = await f(request)
+qa_task_api-1  |                ^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
+qa_task_api-1  |     raw_response = await run_endpoint_function(
+qa_task_api-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 214, in run_endpoint_function
+qa_task_api-1  |     return await run_in_threadpool(dependant.call, **values)
+qa_task_api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/concurrency.py", line 39, in run_in_threadpool
+qa_task_api-1  |     return await anyio.to_thread.run_sync(func, *args)
+qa_task_api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+qa_task_api-1  |     return await get_async_backend().run_sync_in_worker_thread(
+qa_task_api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+qa_task_api-1  |     return await future
+qa_task_api-1  |            ^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+qa_task_api-1  |     result = context.run(func, *args)
+qa_task_api-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/app/backend/services/qa_task_api/app.py", line 614, in list_domains
+qa_task_api-1  |     cur.execute(query, (status, status, search, search, search, search))
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/psycopg/cursor.py", line 97, in execute
+qa_task_api-1  |     raise ex.with_traceback(None)
+qa_task_api-1  | psycopg.errors.IndeterminateDatatype: could not determine data type of parameter $1
+qa_task_api-1  | INFO:     Shutting down
+qa_task_api-1  | INFO:     Waiting for connections to close. (CTRL+C to force quit)
+qa_task_api-1  | INFO:     Started server process [1]
+qa_task_api-1  | INFO:     Waiting for application startup.
+qa_task_api-1  | INFO:     Application startup complete.
+qa_task_api-1  | INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+qa_task_api-1  | INFO:     192.168.65.1:37932 - "GET /api/tasks/task-ed5b1174dce4/events HTTP/1.1" 200 OK
+qa_task_api-1  | INFO:     192.168.65.1:48378 - "GET /api/domains HTTP/1.1" 500 Internal Server Error
+qa_task_api-1  | ERROR:    Exception in ASGI application
+qa_task_api-1  | Traceback (most recent call last):
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/h11_impl.py", line 406, in run_asgi
+qa_task_api-1  |     result = await app(  # type: ignore[func-returns-value]
+qa_task_api-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 70, in __call__
+qa_task_api-1  |     return await self.app(scope, receive, send)
+qa_task_api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/applications.py", line 1054, in __call__
+qa_task_api-1  |     await super().__call__(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/applications.py", line 113, in __call__
+qa_task_api-1  |     await self.middleware_stack(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 187, in __call__
+qa_task_api-1  |     raise exc
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
+qa_task_api-1  |     await self.app(scope, receive, _send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 85, in __call__
+qa_task_api-1  |     await self.app(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+qa_task_api-1  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+qa_task_api-1  |     raise exc
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+qa_task_api-1  |     await app(scope, receive, sender)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 715, in __call__
+qa_task_api-1  |     await self.middleware_stack(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 735, in app
+qa_task_api-1  |     await route.handle(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
+qa_task_api-1  |     await self.app(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
+qa_task_api-1  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+qa_task_api-1  |     raise exc
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+qa_task_api-1  |     await app(scope, receive, sender)
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
+qa_task_api-1  |     response = await f(request)
+qa_task_api-1  |                ^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
+qa_task_api-1  |     raw_response = await run_endpoint_function(
+qa_task_api-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 214, in run_endpoint_function
+qa_task_api-1  |     return await run_in_threadpool(dependant.call, **values)
+qa_task_api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/concurrency.py", line 39, in run_in_threadpool
+qa_task_api-1  |     return await anyio.to_thread.run_sync(func, *args)
+qa_task_api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+qa_task_api-1  |     return await get_async_backend().run_sync_in_worker_thread(
+qa_task_api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+qa_task_api-1  |     return await future
+qa_task_api-1  |            ^^^^^^^^^^^^
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+qa_task_api-1  |     result = context.run(func, *args)
+qa_task_api-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^
+qa_task_api-1  |   File "/app/backend/services/qa_task_api/app.py", line 614, in list_domains
+qa_task_api-1  |     cur.execute(query, (status, status, search, search, search, search))
+qa_task_api-1  |   File "/usr/local/lib/python3.12/site-packages/psycopg/cursor.py", line 97, in execute
+qa_task_api-1  |     raise ex.with_traceback(None)
+qa_task_api-1  | psycopg.errors.IndeterminateDatatype: could not determine data type of parameter $1

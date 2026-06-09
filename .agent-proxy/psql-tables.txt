@@ -1,0 +1,18 @@
+# Generated: 2026-06-09T11:58:13+03:00
+# Command: /Applications/Docker.app/Contents/Resources/bin/docker compose exec -T postgres psql -U qa -d qa_agent -c \dt
+
+               List of relations
+ Schema |         Name          | Type  | Owner 
+--------+-----------------------+-------+-------
+ public | approvals             | table | qa
+ public | domain_context_chunks | table | qa
+ public | domain_context_files  | table | qa
+ public | domain_profiles       | table | qa
+ public | domains               | table | qa
+ public | knowledge_chunks      | table | qa
+ public | knowledge_documents   | table | qa
+ public | results               | table | qa
+ public | task_events           | table | qa
+ public | tasks                 | table | qa
+(10 rows)
+

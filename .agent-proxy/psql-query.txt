@@ -1,0 +1,8 @@
+# Generated: 2026-06-09T12:13:03+03:00
+# Command: /Applications/Docker.app/Contents/Resources/bin/docker compose exec -T postgres psql -U qa -d qa_agent -c select count(*) from domains;
+
+ count 
+-------
+     0
+(1 row)
+

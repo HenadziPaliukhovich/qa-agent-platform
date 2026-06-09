@@ -25,6 +25,7 @@ TASK_TYPE_TO_AGENT = {
     "test_plan": "test_plan_builder",
     "test_report": "test_report_writer",
     "release_readiness": "release_readiness",
+    "roadmap_step_executor": "roadmap_step_executor",
 }
 
 
