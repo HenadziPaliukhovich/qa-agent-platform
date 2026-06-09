@@ -10,6 +10,129 @@ from backend.services.qa_orchestrator.roadmap_executor import (
 )
 
 
+def _normalize_simple_list(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        text = " ".join(item.split()).strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def _extract_requirement_lines(input_data: dict) -> list[str]:
+    items: list[str] = []
+    for key in ["acceptance_criteria", "requirements"]:
+        values = input_data.get(key)
+        if isinstance(values, list):
+            items.extend(item for item in values if isinstance(item, str))
+
+    for key in ["requirement_text", "text", "summary", "title"]:
+        value = input_data.get(key)
+        if isinstance(value, str) and value.strip():
+            items.append(value)
+
+    return _normalize_simple_list(items)
+
+
+def _enrich_requirements_analysis_artifact(artifact: dict, input_data: dict) -> dict:
+    enriched = dict(artifact) if isinstance(artifact, dict) else {}
+    lines = _extract_requirement_lines(input_data if isinstance(input_data, dict) else {})
+    joined = "\n".join(lines).lower()
+
+    if not _normalize_simple_list(enriched.get("requirements_under_test", [])):
+        enriched["requirements_under_test"] = lines[:10] or ["Requirement details were not provided."]
+
+    if not isinstance(enriched.get("summary"), str) or not enriched.get("summary", "").strip():
+        title = str(input_data.get("title", "")).strip()
+        ac_count = len(input_data.get("acceptance_criteria", [])) if isinstance(input_data.get("acceptance_criteria", []), list) else 0
+        enriched["summary"] = (
+            f"QA analysis for {title or 'the provided requirement'} with {ac_count} acceptance criteria. "
+            f"The artifact highlights ambiguities, missing coverage, and suggested test areas based only on the provided input."
+        ).strip()
+
+    clarity_findings = _normalize_simple_list(enriched.get("clarity_findings", []))
+    if not clarity_findings:
+        trigger_map = {
+            "valid": "The term 'valid' is ambiguous unless validation rules are explicitly defined.",
+            "eligible": "The term 'eligible' is ambiguous unless eligibility rules are explicitly defined.",
+            "clear error": "The phrase 'clear error' is ambiguous unless expected error content and presentation are defined.",
+            "within configured limits": "Configured limits are referenced but the concrete boundary rules are not provided.",
+            "updated balance": "Balance update expectations are mentioned but the exact expected state transition is not fully defined.",
+        }
+        for needle, message in trigger_map.items():
+            if needle in joined:
+                clarity_findings.append(message)
+        if not clarity_findings:
+            clarity_findings.append("Some requirement wording remains high-level and may need more explicit acceptance detail for precise QA coverage.")
+        enriched["clarity_findings"] = _normalize_simple_list(clarity_findings)
+
+    coverage_gaps = _normalize_simple_list(enriched.get("coverage_gaps", []))
+    if not coverage_gaps:
+        if all(token not in joined for token in ["invalid", "validation", "error"]):
+            coverage_gaps.append("Validation and invalid-input scenarios are not explicitly described.")
+        if all(token not in joined for token in ["fail", "failed", "failure", "error", "declined"]):
+            coverage_gaps.append("Failure handling scenarios are not explicitly described.")
+        if all(token not in joined for token in ["duplicate", "double", "retry", "again"]):
+            coverage_gaps.append("Repeat submission or duplicate action handling is not explicitly described.")
+        if all(token not in joined for token in ["limit", "min", "max"]):
+            coverage_gaps.append("Boundary conditions or configurable limits are not explicitly described.")
+        if not coverage_gaps:
+            coverage_gaps.append("Alternative and edge-case paths may need stronger coverage definition.")
+        enriched["coverage_gaps"] = _normalize_simple_list(coverage_gaps)
+
+    assumptions = _normalize_simple_list(enriched.get("assumptions", []))
+    if not assumptions:
+        assumptions.append("The described flow is intended to be available to the target user in the tested environment.")
+        enriched["assumptions"] = assumptions
+
+    questions = _normalize_simple_list(enriched.get("questions_for_refinement", []))
+    if not questions:
+        if "valid" in joined:
+            questions.append("What exact validation rules determine whether the input is valid or invalid?")
+        if "eligible" in joined:
+            questions.append("What exact rules determine whether a user or action is eligible?")
+        if "error" in joined or "failed" in joined:
+            questions.append("What specific error cases and user-visible messages are expected for failure scenarios?")
+        if "limit" in joined or "within configured limits" in joined:
+            questions.append("What are the exact configured limits or boundary values that should be enforced?")
+        if not questions:
+            questions.append("Which edge cases or alternative paths should be treated as mandatory coverage for this requirement?")
+        enriched["questions_for_refinement"] = _normalize_simple_list(questions)
+
+    test_areas = _normalize_simple_list(enriched.get("suggested_test_areas", []))
+    if not test_areas:
+        test_areas.extend([
+            "Happy path",
+            "Validation and invalid input handling",
+            "Failure and error handling",
+        ])
+        if "eligible" in joined:
+            test_areas.append("Eligibility rules and non-eligible scenarios")
+        if "balance" in joined:
+            test_areas.append("State consistency and balance updates")
+        if any(token in joined for token in ["submit", "confirm"]):
+            test_areas.append("Repeat submission and idempotency")
+        enriched["suggested_test_areas"] = _normalize_simple_list(test_areas)
+
+    risks = enriched.get("risks", [])
+    if not isinstance(risks, list) or not risks:
+        enriched["risks"] = [
+            "Ambiguous or incomplete requirements may lead to inconsistent implementation and insufficient QA coverage.",
+        ]
+
+    return enriched
+
+
 def _build_handler_result(event: dict, llm_response: dict | None) -> dict:
     raw_output = llm_response.get("output", {}) if isinstance(llm_response, dict) else {}
     llm_output = normalize_llm_output(raw_output, event, llm_response)
@@ -17,6 +140,20 @@ def _build_handler_result(event: dict, llm_response: dict | None) -> dict:
 
     task_type = event.get("task_type", "") if isinstance(event, dict) else ""
     input_data = get_effective_input_data(event) if isinstance(event, dict) else {}
+    if task_type == "requirements_analysis" and isinstance(artifact, dict):
+        artifact = _enrich_requirements_analysis_artifact(artifact, input_data)
+        if isinstance(llm_output, dict):
+            llm_output = dict(llm_output)
+            llm_output.setdefault("summary", artifact.get("summary", ""))
+            llm_output["requirements_under_test"] = artifact.get("requirements_under_test", [])
+            llm_output["clarity_findings"] = artifact.get("clarity_findings", [])
+            llm_output["coverage_gaps"] = artifact.get("coverage_gaps", [])
+            llm_output["assumptions"] = artifact.get("assumptions", [])
+            llm_output["questions_for_refinement"] = artifact.get("questions_for_refinement", [])
+            llm_output["suggested_test_areas"] = artifact.get("suggested_test_areas", [])
+            llm_output["risks"] = artifact.get("risks", [])
+            artifact = build_structured_result(event, llm_output)
+
     llm_context = llm_response.get("context") if isinstance(llm_response, dict) and isinstance(llm_response.get("context"), dict) else {}
     title = input_data.get("title") if isinstance(input_data, dict) else ""
     requirements = input_data.get("requirements") if isinstance(input_data, dict) else []
@@ -235,6 +372,17 @@ def handle_requirements_analysis(event: dict) -> dict:
         ]
         if domain_id:
             artifact["domain_id"] = domain_id
+        summary_text = str(artifact.get("summary", "")).strip()
+        if not summary_text:
+            title = str(enriched_input.get("title", "")).strip()
+            story = str(enriched_input.get("story", "")).strip() or str(enriched_input.get("text", "")).strip()
+            acceptance_criteria = enriched_input.get("acceptance_criteria", [])
+            ac_count = len(acceptance_criteria) if isinstance(acceptance_criteria, list) else 0
+            flow_hint = title or story or "the provided requirement"
+            artifact["summary"] = (
+                f"QA analysis for {flow_hint} with {ac_count} acceptance criteria. "
+                f"The result highlights ambiguities, coverage gaps, risks, and suggested test areas based on the provided input."
+            ).strip()
     return _apply_processing_profile(
         result,
         handler="handle_requirements_analysis",
@@ -249,6 +397,32 @@ def handle_test_case_generation(event: dict) -> dict:
     enriched_event = dict(event)
     input_data = get_effective_input_data(event)
     metadata = enriched_event.get("metadata") if isinstance(enriched_event.get("metadata"), dict) else {}
+
+    # --- domain context retrieval (same pattern as handle_requirements_analysis) ---
+    domain_id = event.get("domain_id")
+    context_scope = event.get("context_scope") or "domain_default"
+    selected_context_ids = event.get("selected_context_ids") or []
+
+    retrieval_query_parts = []
+    if isinstance(input_data, dict):
+        for key in ["requirement_text", "requirements", "prompt", "text", "summary", "title"]:
+            value = input_data.get(key)
+            if isinstance(value, str) and value.strip():
+                retrieval_query_parts.append(value.strip())
+        ac = input_data.get("acceptance_criteria")
+        if isinstance(ac, list):
+            retrieval_query_parts.extend(item for item in ac if isinstance(item, str) and item.strip())
+    retrieval_query = "\n".join(retrieval_query_parts)[:2000]
+
+    used_context: list[dict] = []
+    if domain_id and retrieval_query:
+        used_context = search_domain_context(
+            domain_id=domain_id,
+            query=retrieval_query,
+            selected_context_ids=selected_context_ids if context_scope == "manual_selection" else [],
+            limit=5,
+        )
+    # --- end domain context retrieval ---
 
     analysis_handoff = {}
     if isinstance(input_data, dict):
@@ -270,9 +444,23 @@ def handle_test_case_generation(event: dict) -> dict:
         "specialized_handler": "test_case_generation",
         "analysis_handoff_present": bool(analysis_handoff),
         "domain_focus": "qa_test_case_generation",
+        "domain_id": domain_id,
+        "context_scope": context_scope,
+        "used_context_count": len(used_context),
     }
 
     enriched_input = dict(input_data) if isinstance(input_data, dict) else {}
+    if used_context:
+        enriched_input["domain_context"] = [
+            {
+                "context_file_id": item.get("context_file_id"),
+                "chunk_id": item.get("chunk_id"),
+                "chunk_index": item.get("chunk_index"),
+                "title": item.get("title"),
+                "content": item.get("content"),
+            }
+            for item in used_context
+        ]
     if analysis_handoff:
         enriched_input["analysis_handoff"] = analysis_handoff
         if analysis_handoff.get("suggested_next_prompt") and not enriched_input.get("prompt_hint"):
@@ -281,6 +469,22 @@ def handle_test_case_generation(event: dict) -> dict:
 
     llm_response = call_llm_gateway(enriched_event)
     result = _build_handler_result(enriched_event, llm_response)
+
+    artifact = result.get("artifact") if isinstance(result, dict) else None
+    if isinstance(artifact, dict):
+        artifact["used_context"] = [
+            {
+                "context_file_id": item.get("context_file_id"),
+                "title": item.get("title"),
+                "chunk_id": item.get("chunk_id"),
+                "chunk_index": item.get("chunk_index"),
+                "preview": (item.get("content") or "")[:200],
+            }
+            for item in used_context
+        ]
+        if domain_id:
+            artifact["domain_id"] = domain_id
+
     return _apply_processing_profile(
         result,
         handler="handle_test_case_generation",
@@ -288,6 +492,8 @@ def handle_test_case_generation(event: dict) -> dict:
         analysis_handoff_present=bool(analysis_handoff),
         derived_from_requirements=bool(analysis_handoff.get("requirements_under_test")),
         derived_from_gaps=bool(analysis_handoff.get("coverage_gaps")),
+        domain_context_used=bool(used_context),
+        used_context_count=len(used_context),
     )
 
 

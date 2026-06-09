@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from backend.services.qa_orchestrator.clients import get_effective_input_data
+from backend.services.qa_orchestrator.utils import get_effective_input_data
 from backend.shared.artifacts import (
     QaRequirementAnalysis,
     QaReleaseReadinessReport,
@@ -63,6 +63,119 @@ def extract_requirements_under_test(event: dict) -> list[str]:
         seen.add(normalized)
         deduped.append(item.strip())
     return deduped
+
+
+def build_requirements_analysis_prompt(input_data: dict, llm_context: dict) -> str:
+    title = _normalize_text(str(input_data.get("title", "")))
+    requirement_text = _normalize_text(
+        str(
+            input_data.get("requirement_text")
+            or input_data.get("requirements")
+            or input_data.get("text")
+            or input_data.get("summary")
+            or ""
+        )
+    )
+    acceptance_criteria = input_data.get("acceptance_criteria", [])
+    domain_name = _normalize_text(str(input_data.get("domain_name", "")))
+    domain_summary = _normalize_text(str(input_data.get("domain_summary", "")))
+    domain_risk_focus = input_data.get("domain_risk_focus", [])
+    knowledge_context = llm_context.get("knowledge_context", []) if isinstance(llm_context, dict) else []
+
+    ac_block = "\n".join(
+        f"- {_normalize_text(item)}"
+        for item in acceptance_criteria
+        if isinstance(item, str) and _normalize_text(item)
+    ) or "- None provided"
+
+    risk_focus_block = "\n".join(
+        f"- {_normalize_text(item)}"
+        for item in domain_risk_focus
+        if isinstance(item, str) and _normalize_text(item)
+    ) or "- None provided"
+
+    context_parts: list[str] = []
+    if isinstance(knowledge_context, list):
+        for item in knowledge_context:
+            if not isinstance(item, dict):
+                continue
+            content = _normalize_text(str(item.get("content", "")))
+            if not content:
+                continue
+            context_title = _normalize_text(str(item.get("title", ""))) or "Untitled context"
+            context_parts.append(f"Context title: {context_title}\nContext content:\n{content}")
+    context_block = "\n\n".join(context_parts) or "No additional domain context provided."
+
+    return f'''You are a senior QA analyst.
+
+Your task is to analyze requirements and return a STRICT JSON object for a qa_requirement_analysis artifact.
+
+IMPORTANT CONSTRAINTS:
+1. Use only information explicitly present in:
+   - requirement text
+   - acceptance criteria
+   - provided domain context
+2. Do NOT invent business rules, limits, values, actors, statuses, third-party systems, or domain details that are not present in the input.
+3. If information is missing, record it as:
+   - clarity_findings
+   - coverage_gaps
+   - questions_for_refinement
+   Do NOT fill missing details with guesses.
+4. Domain-specific thinking is allowed ONLY when grounded in the provided domain summary, risk focus, or context.
+5. Return only one valid JSON object. No markdown. No explanations.
+
+ANALYSIS HEURISTICS:
+- Identify vague or non-testable wording.
+- Identify missing boundaries, rules, or validation criteria.
+- Identify missing negative, failure, alternate, or edge scenarios.
+- Identify steps mentioned in the requirement text but not clearly covered by acceptance criteria.
+- Use assumptions sparingly. Assumptions must be cautious, minimal, and clearly derived from the input. Never use assumptions to invent hidden business logic.
+
+REQUIRED JSON SHAPE:
+{{
+  "summary": "string",
+  "requirements_under_test": ["string"],
+  "clarity_findings": ["string"],
+  "coverage_gaps": ["string"],
+  "assumptions": ["string"],
+  "questions_for_refinement": ["string"],
+  "suggested_test_areas": ["string"],
+  "risks": ["string"]
+}}
+
+FIELD RULES:
+- summary: REQUIRED. Always populate it with 1-3 sentences, concise and grounded in the input. Never leave summary empty.
+- In summary, explicitly mention the main business flow or domain terms from the input when present, such as deposit, withdrawal, bonus, limit, payment method, balance, or error handling.
+- requirements_under_test: 3-10 concrete requirements or requirement units suitable for later test-case mapping.
+- clarity_findings: specific ambiguities, not generic statements.
+- coverage_gaps: only genuinely missing scenarios or rules.
+- assumptions: minimal and cautious; if possible, keep this short.
+- questions_for_refinement: concrete questions that help remove ambiguity.
+- suggested_test_areas: high-level test design areas based on the input.
+- risks: QA or product risks caused by ambiguity, missing rules, or incomplete coverage.
+- Do not leave arrays empty. If information is insufficient, add grounded statements about missing detail instead of inventing facts.
+
+DOMAIN NAME:
+{domain_name or "Not provided"}
+
+DOMAIN SUMMARY:
+{domain_summary or "Not provided"}
+
+DOMAIN RISK FOCUS:
+{risk_focus_block}
+
+TITLE:
+{title or "Not provided"}
+
+REQUIREMENT TEXT:
+{requirement_text or "Not provided"}
+
+ACCEPTANCE CRITERIA:
+{ac_block}
+
+ADDITIONAL DOMAIN CONTEXT:
+{context_block}
+'''.strip()
 
 
 def normalize_llm_output(raw_output: Any, event: dict, llm_response: Any) -> dict:
@@ -161,15 +274,16 @@ def build_test_case_bundle_artifact(event: dict, llm_output: dict, provider: str
 
 def build_requirements_analysis_artifact(event: dict, llm_output: dict, provider: str, model_name: str) -> dict:
     input_data = get_effective_input_data(event)
+    requirements_under_test = _normalize_text_list(llm_output.get("requirements_under_test", [])) or extract_requirements_under_test(event)
     artifact = QaRequirementAnalysis(
         summary=_normalize_text(llm_output.get("summary", "")),
-        requirements_under_test=extract_requirements_under_test(event),
+        requirements_under_test=requirements_under_test,
         clarity_findings=_normalize_text_list(llm_output.get("clarity_findings", [])),
         coverage_gaps=_normalize_text_list(llm_output.get("coverage_gaps", [])),
         assumptions=_normalize_text_list(llm_output.get("assumptions", [])),
         questions_for_refinement=_normalize_text_list(llm_output.get("questions_for_refinement", [])),
         suggested_test_areas=_normalize_text_list(llm_output.get("suggested_test_areas", [])),
-        risks=_normalize_risks(llm_output.get("risks", [])),
+        risks=_normalize_risk_strings(llm_output.get("risks", [])),
         source_context={
             "story_id": _normalize_text(str(input_data.get("story_id", ""))),
             "jira_key": _normalize_text(str(input_data.get("jira_key", ""))),

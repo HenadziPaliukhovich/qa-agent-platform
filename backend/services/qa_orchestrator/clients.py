@@ -5,6 +5,9 @@ from typing import Any
 
 import requests
 
+from backend.services.qa_orchestrator.builders import build_requirements_analysis_prompt
+from backend.services.qa_orchestrator.utils import get_effective_input_data
+
 logger = logging.getLogger("qa-orchestrator")
 
 LLM_GATEWAY_URL = os.getenv("LLM_GATEWAY_URL", "http://127.0.0.1:8003")
@@ -35,21 +38,6 @@ def build_rag_query(input_data: dict[str, Any]) -> str:
         parts.extend(item.strip() for item in related_docs if isinstance(item, str) and item.strip())
 
     return "\n".join(parts[:20]).strip()
-
-
-def get_effective_input_data(event: dict) -> dict:
-    raw_input = event.get("input", {})
-    if not isinstance(raw_input, dict):
-        return {}
-
-    nested_input = raw_input.get("input")
-    if isinstance(nested_input, dict):
-        merged = dict(raw_input)
-        merged.update(nested_input)
-        merged.pop("input", None)
-        return merged
-
-    return raw_input
 
 
 def fetch_rag_context(event: dict, input_data: dict | None = None) -> list[dict]:
@@ -168,14 +156,17 @@ def call_llm_gateway(event: dict) -> dict:
         [(chunk.get("content") or "")[:120] for chunk in llm_context["knowledge_context"]],
     )
 
-    prompt = json.dumps(
-        {
-            "task_input": input_data,
-            "knowledge_context": llm_context["knowledge_context"],
-        },
-        ensure_ascii=False,
-        indent=2,
-    )
+    if task_type == "requirements_analysis":
+        prompt = build_requirements_analysis_prompt(input_data, llm_context)
+    else:
+        prompt = json.dumps(
+            {
+                "task_input": input_data,
+                "knowledge_context": llm_context["knowledge_context"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
     try:
         response = requests.post(
