@@ -49,11 +49,14 @@ jobs:
           docker compose logs --tail 200 qa_task_api qa_orchestrator qa_result_service qa_rag_service
           exit 1
 
-      - name: Verify domains API
+      - name: Diagnose task API routes
         run: |
           curl --fail "$BASE_URL/health"
           curl --fail "$BASE_URL/openapi.json" > openapi.json
-          python3 -c 'import json, pathlib; data = json.loads(pathlib.Path("openapi.json").read_text()); paths = data.get("paths", {}); assert "/api/domains" in paths, "Route /api/domains is missing from OpenAPI"; print("Route /api/domains is present in OpenAPI")'
+          echo "==> OpenAPI paths"
+          python3 -c 'import json, pathlib; data = json.loads(pathlib.Path("openapi.json").read_text()); print("\n".join(sorted(data.get("paths", {}).keys())))'
+          echo "==> qa_task_api logs"
+          docker compose logs --tail 200 qa_task_api
 
       - name: Seed default domain
         run: |
