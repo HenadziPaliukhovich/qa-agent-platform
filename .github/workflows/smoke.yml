@@ -77,6 +77,8 @@ jobs:
         env:
           DOMAIN_ID: 11111111-1111-1111-1111-111111111111
         run: |
+          git rev-parse HEAD
+          sed -n '1,260p' ./scripts/smoke-task.sh
           chmod +x ./scripts/smoke-task.sh
           ./scripts/smoke-task.sh
 
