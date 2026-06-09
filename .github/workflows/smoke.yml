@@ -53,18 +53,7 @@ jobs:
         run: |
           curl --fail "$BASE_URL/health"
           curl --fail "$BASE_URL/openapi.json" > openapi.json
-          python3 - <<'PY' < openapi.json
-import json
-import sys
-
-data = json.load(sys.stdin)
-paths = data.get("paths", {})
-
-if "/api/domains" not in paths:
-    raise SystemExit("Route /api/domains is missing from OpenAPI")
-
-print("Route /api/domains is present in OpenAPI")
-PY
+          python3 -c 'import json, pathlib; data = json.loads(pathlib.Path("openapi.json").read_text()); paths = data.get("paths", {}); assert "/api/domains" in paths, "Route /api/domains is missing from OpenAPI"; print("Route /api/domains is present in OpenAPI")'
 
       - name: Seed default domain
         run: |
