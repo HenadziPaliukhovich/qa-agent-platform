@@ -25,7 +25,7 @@ jobs:
 
       - name: Build and start API stack
         run: |
-          docker compose up -d --build postgres db_migrate redis qa_result_service qa_rag_service qa_task_api
+          docker compose up -d --build
 
       - name: Wait for API
         run: |
@@ -39,7 +39,7 @@ jobs:
           done
           echo "API did not become ready in time"
           docker compose ps
-          docker compose logs --tail 200 postgres db_migrate redis qa_result_service qa_rag_service qa_task_api
+          docker compose logs --tail 200
           exit 1
 
       - name: Run health checks
