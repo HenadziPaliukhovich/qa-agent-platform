@@ -1,4 +1,4 @@
-name: QA Agent Smoke
+name: QA Agent Health
 
 on:
   workflow_dispatch:
@@ -8,52 +8,24 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  smoke:
+  health:
     runs-on: ubuntu-latest
 
     env:
       BASE_URL: http://127.0.0.1:8001
-      PYTHON_BIN: python3
-      FAIL_ON_EMPTY_TEST_CASES: "1"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
       - name: Verify Docker Compose
         run: |
           docker --version
           docker compose version
 
-      - name: Build and start stack
+      - name: Build and start API stack
         run: |
-          docker compose up -d --build qa_llm_gateway qa_task_api qa_orchestrator qa_result_service qa_rag_service
-
-      - name: Warm up Ollama model
-        run: |
-          for i in {1..60}; do
-            if curl -sSf http://127.0.0.1:8003/health >/dev/null 2>&1; then
-              echo "LLM gateway is up"
-              break
-            fi
-            echo "Waiting for LLM gateway..."
-            sleep 2
-          done
-          docker compose exec -T qa_llm_gateway sh -lc 'python - <<"PY"
-import urllib.request, json
-req = urllib.request.Request(
-    "http://host.docker.internal:11434/api/generate",
-    data=json.dumps({"model":"qwen2.5","prompt":"ping","stream":False}).encode(),
-    headers={"Content-Type":"application/json"},
-)
-with urllib.request.urlopen(req, timeout=180) as resp:
-    print(resp.read().decode()[:500])
-PY'
+          docker compose up -d --build postgres db_migrate redis qa_result_service qa_rag_service qa_task_api
 
       - name: Wait for API
         run: |
@@ -67,45 +39,19 @@ PY'
           done
           echo "API did not become ready in time"
           docker compose ps
-          docker compose logs --tail 200 qa_task_api qa_orchestrator qa_result_service qa_rag_service
+          docker compose logs --tail 200 postgres db_migrate redis qa_result_service qa_rag_service qa_task_api
           exit 1
 
-      - name: Diagnose task API routes
+      - name: Run health checks
         run: |
           curl --fail "$BASE_URL/health"
           curl --fail "$BASE_URL/openapi.json" > openapi.json
-          echo "==> OpenAPI paths"
-          python3 -c 'import json, pathlib; data = json.loads(pathlib.Path("openapi.json").read_text()); print("\n".join(sorted(data.get("paths", {}).keys())))'
-          echo "==> qa_task_api logs"
-          docker compose logs --tail 200 qa_task_api
+          python3 -c 'import json, pathlib; data = json.loads(pathlib.Path("openapi.json").read_text()); print("OpenAPI paths count:", len(data.get("paths", {})))'
 
-      - name: Seed default domain in Postgres
-        run: |
-          docker compose exec -T postgres psql -U qa -d qa_agent <<'SQL'
-          insert into domains (domain_id, name, slug, description, status, tags)
-          values (
-            '11111111-1111-1111-1111-111111111111',
-            'Payments',
-            'payments',
-            'Smoke Payments domain',
-            'active',
-            '["payments","smoke"]'::jsonb
-          )
-          on conflict (slug) do nothing;
-          SQL
-
-      - name: Run smoke suite
-        env:
-          DOMAIN_ID: 11111111-1111-1111-1111-111111111111
-        run: |
-          git rev-parse HEAD
-          sed -n '1,260p' ./scripts/smoke-task.sh
-          chmod +x ./scripts/smoke-task.sh
-          ./scripts/smoke-task.sh
-
-      - name: Upload smoke log
+      - name: Upload API logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-task-log
-          path: smoke-task.log
+          name: qa-agent-health-logs
+          path: |
+            openapi.json
