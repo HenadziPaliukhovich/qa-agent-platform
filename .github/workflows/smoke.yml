@@ -32,7 +32,28 @@ jobs:
 
       - name: Build and start stack
         run: |
-          docker compose up -d --build qa_task_api qa_orchestrator qa_result_service qa_rag_service
+          docker compose up -d --build qa_llm_gateway qa_task_api qa_orchestrator qa_result_service qa_rag_service
+
+      - name: Warm up Ollama model
+        run: |
+          for i in {1..60}; do
+            if curl -sSf http://127.0.0.1:8003/health >/dev/null 2>&1; then
+              echo "LLM gateway is up"
+              break
+            fi
+            echo "Waiting for LLM gateway..."
+            sleep 2
+          done
+          docker compose exec -T qa_llm_gateway sh -lc 'python - <<"PY"
+import urllib.request, json
+req = urllib.request.Request(
+    "http://host.docker.internal:11434/api/generate",
+    data=json.dumps({"model":"qwen2.5","prompt":"ping","stream":False}).encode(),
+    headers={"Content-Type":"application/json"},
+)
+with urllib.request.urlopen(req, timeout=180) as resp:
+    print(resp.read().decode()[:500])
+PY'
 
       - name: Wait for API
         run: |
