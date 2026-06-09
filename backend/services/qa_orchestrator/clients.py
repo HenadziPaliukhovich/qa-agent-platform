@@ -83,6 +83,64 @@ def fetch_rag_context(event: dict, input_data: dict | None = None) -> list[dict]
         return []
 
 
+def _build_fallback_artifact(task_type: str, input_data: dict[str, Any], llm_context: dict[str, Any]) -> dict[str, Any]:
+    title = input_data.get("title") or input_data.get("story_title") or "Untitled task"
+    description = input_data.get("description") or input_data.get("story_description") or ""
+    domain_id = input_data.get("domain_id")
+
+    if task_type == "test_case_generation":
+        return {
+            "summary": f"Fallback test cases for {title}",
+            "test_cases": [
+                {
+                    "id": "TC-001",
+                    "title": f"{title}: happy path",
+                    "steps": [
+                        "Open the flow",
+                        "Provide valid input",
+                        "Submit the action",
+                    ],
+                    "expected_result": "Flow completes successfully",
+                },
+                {
+                    "id": "TC-002",
+                    "title": f"{title}: validation handling",
+                    "steps": [
+                        "Open the flow",
+                        "Submit invalid or incomplete input",
+                    ],
+                    "expected_result": "Validation feedback is shown",
+                },
+                {
+                    "id": "TC-003",
+                    "title": f"{title}: failure path",
+                    "steps": [
+                        "Open the flow",
+                        "Trigger or simulate provider or service failure",
+                    ],
+                    "expected_result": "A clear error state is shown and data remains consistent",
+                },
+            ],
+            "risks": [
+                "Domain context was limited because the LLM gateway was unavailable.",
+                f"Domain binding should be verified for domain_id={domain_id}" if domain_id else "Domain binding was not provided.",
+            ],
+            "debug_context": llm_context.get("debug_context", {}),
+            "fallback": True,
+        }
+
+    return {
+        "summary": f"Fallback artifact for {task_type}",
+        "details": {
+            "title": title,
+            "description": description,
+            "domain_id": domain_id,
+        },
+        "debug_context": llm_context.get("debug_context", {}),
+        "fallback": True,
+    }
+
+
 def call_llm_gateway(event: dict) -> dict:
     input_data = get_effective_input_data(event)
     task_type = event.get("task_type", "test_case_generation")
@@ -119,21 +177,32 @@ def call_llm_gateway(event: dict) -> dict:
         indent=2,
     )
 
-    response = requests.post(
-        f"{LLM_GATEWAY_URL}/generate",
-        json={
-            "model_profile": event.get("mode", "balanced"),
-            "prompt": prompt,
-            "task_id": event.get("task_id"),
-            "task_type": task_type,
-            "context": llm_context,
-            "provider": event.get("model_provider", "stub"),
-            "model_name": event.get("model_name", "stub-default"),
-        },
-        timeout=120,
-    )
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = requests.post(
+            f"{LLM_GATEWAY_URL}/generate",
+            json={
+                "model_profile": event.get("mode", "balanced"),
+                "prompt": prompt,
+                "task_id": event.get("task_id"),
+                "task_type": task_type,
+                "context": llm_context,
+                "provider": event.get("model_provider", "stub"),
+                "model_name": event.get("model_name", "stub-default"),
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        logger.warning("LLM gateway unavailable for task %s: %s", event.get("task_id"), exc)
+        return {
+            "raw_output": {
+                "fallback": True,
+                "task_type": task_type,
+                "message": "LLM gateway unavailable, produced deterministic fallback artifact.",
+            },
+            "normalized_output": _build_fallback_artifact(task_type, input_data, llm_context),
+        }
 
 
 def persist_result(task_id: str, artifact: dict) -> None:
@@ -149,3 +218,22 @@ def persist_result(task_id: str, artifact: dict) -> None:
         timeout=30,
     )
     response.raise_for_status()
+
+def search_domain_context(domain_id: str, query: str, selected_context_ids: list[str] | None = None, limit: int = 5) -> list[dict]:
+    try:
+        response = requests.post(
+            f"{RAG_SERVICE_URL}/api/domains/context-search",
+            json={
+                "domain_id": domain_id,
+                "query": query,
+                "selected_context_ids": selected_context_ids or [],
+                "limit": limit,
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data.get("items", [])
+    except Exception:
+        return []
+

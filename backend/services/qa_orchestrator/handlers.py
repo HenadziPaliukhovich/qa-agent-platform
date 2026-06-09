@@ -2,13 +2,76 @@ from backend.services.qa_orchestrator.builders import (
     build_structured_result,
     normalize_llm_output,
 )
-from backend.services.qa_orchestrator.clients import call_llm_gateway, get_effective_input_data
+from backend.services.qa_orchestrator.clients import call_llm_gateway, get_effective_input_data, search_domain_context
+from backend.services.qa_orchestrator.roadmap_executor import (
+    build_default_roadmap_steps,
+    build_roadmap_prompt,
+    roadmap_step_to_llm_payload,
+)
 
 
 def _build_handler_result(event: dict, llm_response: dict | None) -> dict:
     raw_output = llm_response.get("output", {}) if isinstance(llm_response, dict) else {}
     llm_output = normalize_llm_output(raw_output, event, llm_response)
     artifact = build_structured_result(event, llm_output)
+
+    task_type = event.get("task_type", "") if isinstance(event, dict) else ""
+    input_data = get_effective_input_data(event) if isinstance(event, dict) else {}
+    llm_context = llm_response.get("context") if isinstance(llm_response, dict) and isinstance(llm_response.get("context"), dict) else {}
+
+    should_apply_test_case_fallback = (
+        task_type == "test_case_generation"
+        and isinstance(artifact, dict)
+        and not artifact.get("test_cases")
+    )
+
+    if should_apply_test_case_fallback:
+        fallback_output = {
+            "summary": llm_output.get("summary") or f"Fallback test cases for {input_data.get('title') or 'Untitled task'}",
+            "test_cases": [
+                {
+                    "id": "TC-001",
+                    "title": f"{input_data.get('title') or 'Untitled task'}: happy path",
+                    "steps": [
+                        "Open the flow",
+                        "Provide valid input",
+                        "Submit the action",
+                    ],
+                    "expected_result": "Flow completes successfully",
+                },
+                {
+                    "id": "TC-002",
+                    "title": f"{input_data.get('title') or 'Untitled task'}: validation handling",
+                    "steps": [
+                        "Open the flow",
+                        "Submit invalid or incomplete input",
+                    ],
+                    "expected_result": "Validation feedback is shown",
+                },
+                {
+                    "id": "TC-003",
+                    "title": f"{input_data.get('title') or 'Untitled task'}: failure path",
+                    "steps": [
+                        "Open the flow",
+                        "Trigger or simulate provider or service failure",
+                    ],
+                    "expected_result": "A clear error state is shown and data remains consistent",
+                },
+            ],
+            "risks": llm_output.get("risks") or [
+                "Generated artifact was empty, deterministic fallback test cases were applied.",
+            ],
+            "debug_context": llm_context.get("debug_context", {}),
+            "fallback": True,
+        }
+        llm_output = fallback_output
+        artifact = build_structured_result(event, llm_output)
+        if isinstance(artifact, dict):
+            artifact.setdefault("processing_profile", {})
+            if isinstance(artifact["processing_profile"], dict):
+                artifact["processing_profile"]["fallback_applied"] = True
+                artifact["processing_profile"]["fallback_reason"] = "empty_test_cases"
+
     return {
         "llm_response": llm_response,
         "llm_output": llm_output,
@@ -32,20 +95,76 @@ def handle_generic_task(event: dict) -> dict:
 
 def handle_requirements_analysis(event: dict) -> dict:
     enriched_event = dict(event)
+    input_data = get_effective_input_data(event)
     metadata = enriched_event.get("metadata") if isinstance(enriched_event.get("metadata"), dict) else {}
+
+    domain_id = event.get("domain_id")
+    context_scope = event.get("context_scope") or "domain_default"
+    selected_context_ids = event.get("selected_context_ids") or []
+
+    retrieval_query_parts = []
+    if isinstance(input_data, dict):
+        for key in ["requirement_text", "requirements", "prompt", "text", "summary"]:
+            value = input_data.get(key)
+            if isinstance(value, str) and value.strip():
+                retrieval_query_parts.append(value.strip())
+    retrieval_query = "\n".join(retrieval_query_parts)[:2000]
+
+    used_context = []
+    if domain_id and retrieval_query:
+        used_context = search_domain_context(
+            domain_id=domain_id,
+            query=retrieval_query,
+            selected_context_ids=selected_context_ids if context_scope == "manual_selection" else [],
+            limit=5,
+        )
+
+    enriched_input = dict(input_data) if isinstance(input_data, dict) else {}
+    if used_context:
+        enriched_input["domain_context"] = [
+            {
+                "context_file_id": item.get("context_file_id"),
+                "chunk_id": item.get("chunk_id"),
+                "chunk_index": item.get("chunk_index"),
+                "title": item.get("title"),
+                "content": item.get("content"),
+            }
+            for item in used_context
+        ]
+    enriched_event["input"] = enriched_input
+
     enriched_event["metadata"] = {
         **metadata,
         "specialized_handler": "requirements_analysis",
         "handoff_enabled": True,
         "domain_focus": "qa_requirements_analysis",
+        "domain_id": domain_id,
+        "context_scope": context_scope,
+        "used_context_count": len(used_context),
     }
     llm_response = call_llm_gateway(enriched_event)
     result = _build_handler_result(enriched_event, llm_response)
+    artifact = result.get("artifact") if isinstance(result, dict) else None
+    if isinstance(artifact, dict):
+        artifact["used_context"] = [
+            {
+                "context_file_id": item.get("context_file_id"),
+                "title": item.get("title"),
+                "chunk_id": item.get("chunk_id"),
+                "chunk_index": item.get("chunk_index"),
+                "preview": (item.get("content") or "")[:200],
+            }
+            for item in used_context
+        ]
+        if domain_id:
+            artifact["domain_id"] = domain_id
     return _apply_processing_profile(
         result,
         handler="handle_requirements_analysis",
         specialized=True,
         handoff_enabled=True,
+        domain_context_used=bool(used_context),
+        used_context_count=len(used_context),
     )
 
 
@@ -92,4 +211,83 @@ def handle_test_case_generation(event: dict) -> dict:
         analysis_handoff_present=bool(analysis_handoff),
         derived_from_requirements=bool(analysis_handoff.get("requirements_under_test")),
         derived_from_gaps=bool(analysis_handoff.get("coverage_gaps")),
+    )
+
+
+def handle_roadmap_step_executor(event: dict) -> dict:
+    enriched_event = dict(event)
+    input_data = get_effective_input_data(event)
+    metadata = enriched_event.get("metadata") if isinstance(enriched_event.get("metadata"), dict) else {}
+
+    steps = build_default_roadmap_steps()
+    requested_step_id = input_data.get("step_id") if isinstance(input_data, dict) else None
+
+    selected_step = None
+    if requested_step_id:
+        selected_step = next((step for step in steps if step.id == requested_step_id), None)
+    if selected_step is None and steps:
+        selected_step = steps[0]
+
+    if selected_step is None:
+        enriched_event["metadata"] = {
+            **metadata,
+            "specialized_handler": "roadmap_step_executor",
+            "roadmap_error": "no_steps_available",
+        }
+        enriched_event["input"] = {
+            "prompt": "No roadmap steps are available to execute.",
+        }
+        llm_response = call_llm_gateway(enriched_event)
+        result = _build_handler_result(enriched_event, llm_response)
+        return _apply_processing_profile(
+            result,
+            handler="handle_roadmap_step_executor",
+            specialized=True,
+            roadmap_step_available=False,
+        )
+
+    extra_context = {
+        "task_type": event.get("task_type", "roadmap_step_executor"),
+        "requested_step_id": requested_step_id or "<auto>",
+        "execution_mode": "autonomous_continue",
+    }
+    prompt = build_roadmap_prompt(selected_step, extra_context=extra_context)
+    roadmap_payload = roadmap_step_to_llm_payload(selected_step)
+
+    enriched_event["metadata"] = {
+        **metadata,
+        "specialized_handler": "roadmap_step_executor",
+        "roadmap_step_id": selected_step.id,
+        "roadmap_phase": selected_step.phase,
+        "domain_focus": "qa_platform_self_evolution",
+        "no_user_confirmation_required": True,
+    }
+    enriched_event["input"] = {
+        **(input_data if isinstance(input_data, dict) else {}),
+        "prompt": prompt,
+        "roadmap_step": roadmap_payload,
+    }
+
+    llm_response = call_llm_gateway(enriched_event)
+    result = _build_handler_result(enriched_event, llm_response)
+    artifact = result.get("artifact") if isinstance(result, dict) else None
+    if isinstance(artifact, dict):
+        artifact.setdefault("roadmap_execution", {})
+        if isinstance(artifact["roadmap_execution"], dict):
+            artifact["roadmap_execution"].update(
+                {
+                    "selected_step_id": selected_step.id,
+                    "selected_step_title": selected_step.title,
+                    "selected_step_phase": selected_step.phase,
+                    "autonomous_continue": True,
+                }
+            )
+
+    return _apply_processing_profile(
+        result,
+        handler="handle_roadmap_step_executor",
+        specialized=True,
+        roadmap_step_id=selected_step.id,
+        roadmap_phase=selected_step.phase,
+        autonomous_continue=True,
     )

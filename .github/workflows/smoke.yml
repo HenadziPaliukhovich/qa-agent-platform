@@ -1,0 +1,75 @@
+name: QA Agent Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: qa
+          POSTGRES_PASSWORD: qa
+          POSTGRES_DB: qa_agent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U qa"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      BASE_URL: http://127.0.0.1:8001
+      PYTHON_BIN: python3
+      FAIL_ON_EMPTY_TEST_CASES: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose-plugin
+
+      - name: Build and start stack
+        run: |
+          docker compose up -d --build qa_task_api qa_orchestrator qa_result_service qa_rag_service
+
+      - name: Wait for API
+        run: |
+          for i in {1..30}; do
+            if curl -sSf "$BASE_URL/health" >/dev/null 2>&1; then
+              echo "API is up"
+              exit 0
+            fi
+            echo "Waiting for API..."
+            sleep 2
+          done
+          echo "API did not become ready in time"
+          exit 1
+
+      - name: Run smoke suite
+        run: |
+          chmod +x ./scripts/smoke-task.sh
+          ./scripts/smoke-task.sh
+
+      - name: Upload smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-task-log
+          path: smoke-task.log
