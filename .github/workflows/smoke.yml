@@ -74,6 +74,8 @@ jobs:
           SQL
 
       - name: Run smoke suite
+        env:
+          DOMAIN_ID: 11111111-1111-1111-1111-111111111111
         run: |
           chmod +x ./scripts/smoke-task.sh
           ./scripts/smoke-task.sh
